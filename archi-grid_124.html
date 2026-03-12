@@ -1,0 +1,4362 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ArchiGrid</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a1a; --panel: #222; --border: #333;
+    --accent: #e8d5a3; --accent2: #7eb8a4;
+    --text: #ccc; --text-dim: #666; --grid-bg: #0f0f0f;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  header { height: 42px; background: var(--panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; }
+  header .logo { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500; color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
+  .header-sep { width: 1px; height: 20px; background: var(--border); }
+  .undo-redo { display: flex; gap: 4px; }
+  .ur-btn { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-dim); background: transparent; border: 1px solid var(--border); border-radius: 3px; padding: 3px 9px; cursor: pointer; transition: color .1s, border-color .1s, background .1s; user-select: none; outline: none; }
+  .ur-btn:hover:not(:disabled) { color: var(--text); border-color: #555; background: #2a2a2a; }
+  .ur-btn:active:not(:disabled) { background: #333; }
+  .ur-btn:disabled { opacity: .3; cursor: default; }
+  .ur-hint { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-dim); opacity: .5; }
+  .io-btn { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-dim); background: transparent; border: 1px solid var(--border); border-radius: 3px; padding: 3px 9px; cursor: pointer; transition: color .1s, border-color .1s, background .1s; user-select: none; outline: none; }
+  .io-btn:hover { color: var(--text); border-color: #555; background: #2a2a2a; }
+  .io-btn:active { background: #333; }
+  .info-btn { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-dim); background: transparent; border: 1px solid var(--border); border-radius: 3px; padding: 3px 9px; cursor: pointer; transition: color .1s, border-color .1s, background .1s; user-select: none; outline: none; }
+  .info-btn:hover { color: var(--accent); border-color: #555; background: #2a2a2a; }
+  .info-btn:active { background: #333; }
+
+  /* SETTINGS MODAL */
+  .settings-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 500; }
+  .settings-modal-overlay.hidden { display: none; }
+  .settings-modal-box { background: #1e1e1e; border: 1px solid #3a3a3a; border-radius: 8px; width: 340px; max-width: 92vw; display: flex; flex-direction: column; overflow: hidden; }
+  .settings-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px 12px; border-bottom: 1px solid #2a2a2a; flex-shrink: 0; }
+  .settings-modal-title { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: .12em; }
+  .settings-modal-close { font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: var(--text-dim); cursor: pointer; background: none; border: none; padding: 0 4px; line-height: 1; transition: color .1s; }
+  .settings-modal-close:hover { color: var(--text); }
+  .settings-modal-body { padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .settings-section-title { font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: .14em; color: var(--text-dim); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #2a2a2a; }
+  .settings-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .settings-row-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #888; width: 100px; flex-shrink: 0; }
+  .settings-swatches { display: flex; gap: 4px; }
+  .settings-swatch { width: 20px; height: 20px; border-radius: 3px; cursor: pointer; border: 2px solid transparent; transition: transform .1s, border-color .1s; flex-shrink: 0; outline: 1px solid #2a2a2a; }
+  .settings-swatch:hover { transform: scale(1.12); }
+  .settings-swatch.active { border-color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.25); }
+  .header-filename { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+
+  /* HELP MODALS */
+  .help-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 500; }
+  .help-modal-overlay.hidden { display: none; }
+  .help-modal-box { background: #1e1e1e; border: 1px solid #3a3a3a; border-radius: 8px; width: 580px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+  .help-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 14px; border-bottom: 1px solid #2a2a2a; flex-shrink: 0; }
+  .help-modal-title { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: .1em; }
+  .help-modal-close { font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: var(--text-dim); cursor: pointer; background: none; border: none; padding: 0 4px; line-height: 1; transition: color .1s; }
+  .help-modal-close:hover { color: var(--text); }
+  .help-modal-body { overflow-y: auto; padding: 20px; scrollbar-width: thin; scrollbar-color: #333 transparent; }
+  .help-modal-body::-webkit-scrollbar { width: 4px; }
+  .help-modal-body::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+
+  .help-section { margin-bottom: 22px; }
+  .help-section:last-child { margin-bottom: 0; }
+  .help-section-title { font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 500; text-transform: uppercase; letter-spacing: .14em; color: var(--text-dim); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #2a2a2a; }
+  .help-section p { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; color: #aaa; line-height: 1.7; margin-bottom: 6px; }
+  .help-section p:last-child { margin-bottom: 0; }
+
+  .shortcuts-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; align-items: baseline; }
+  .sc-key { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--accent); white-space: nowrap; }
+  .sc-key kbd { display: inline-block; background: #2a2a2a; border: 1px solid #444; border-radius: 3px; padding: 1px 6px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--accent); }
+  .sc-desc { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; color: #999; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* LEFT PANEL */
+  .left-panel { width: 220px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
+  .left-panel::-webkit-scrollbar { display: none; }
+  .panel-section { border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .panel-section h3 { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim); cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; padding: 10px 14px 8px; }
+  .panel-section h3::after { content: '▸'; font-size: 9px; opacity: .5; transition: transform .15s; }
+  .panel-section:not(.collapsed) h3::after { content: '▾'; }
+  .panel-section .panel-body { padding: 0 14px 14px; }
+  .panel-section.collapsed .panel-body { display: none; }
+
+  /* BRUSH SIZE */
+  .brush-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .brush-axis-label { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--accent2); width: 14px; flex-shrink: 0; }
+  .brush-controls { display: flex; align-items: center; gap: 5px; flex: 1; }
+  .brush-btn { width: 22px; height: 22px; background: #2a2a2a; border: 1px solid var(--border); color: var(--text); font-size: 15px; cursor: pointer; border-radius: 3px; display: flex; align-items: center; justify-content: center; user-select: none; transition: background .1s; flex-shrink: 0; }
+  .brush-btn:hover { background: #383838; }
+  .brush-btn:active { background: #555; }
+  .brush-input { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--accent); background: #2a2a2a; border: 1px solid var(--border); border-radius: 3px; width: 44px; height: 22px; text-align: center; outline: none; padding: 0 2px; }
+  .brush-input:focus { border-color: var(--accent2); color: #fff; }
+  .brush-unit { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-dim); flex-shrink: 0; }
+  .brush-slider-row { margin-bottom: 10px; padding: 0 2px; }
+  .brush-slider { width: 100%; height: 3px; -webkit-appearance: none; appearance: none; background: var(--border); border-radius: 2px; outline: none; cursor: pointer; }
+  .brush-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--accent2); cursor: pointer; }
+  .brush-slider::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--accent2); border: none; cursor: pointer; }
+
+  /* BRUSH COLOR */
+  .color-presets { display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 0 8px; }
+  .color-swatch {
+    width: 22px; height: 22px; border-radius: 4px; cursor: pointer;
+    border: 2px solid transparent; flex-shrink: 0;
+    transition: transform .1s, border-color .1s;
+  }
+  .color-swatch:hover { transform: scale(1.15); }
+  .color-swatch.active { border-color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.3); }
+
+  /* HSB COLOR PICKER */
+  .hsb-picker { padding: 2px 0 8px; display: flex; flex-direction: column; gap: 8px; }
+  .hsb-row { display: flex; align-items: center; gap: 7px; }
+  .hsb-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-dim); width: 10px; flex-shrink: 0; }
+  .hsb-slider {
+    flex: 1; height: 7px; -webkit-appearance: none; appearance: none;
+    border-radius: 4px; outline: none; cursor: pointer;
+    border: none; padding: 0; margin: 0;
+  }
+  .hsb-slider::-webkit-slider-runnable-track {
+    height: 7px; border-radius: 4px; border: none; background: transparent;
+  }
+  .hsb-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; cursor: pointer; margin-top: -3px;
+    box-shadow: 0 0 0 1.5px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.5);
+  }
+  .hsb-slider::-moz-range-track {
+    height: 7px; border-radius: 4px; border: none; background: transparent;
+  }
+  .hsb-slider::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%; border: none;
+    background: #fff; cursor: pointer;
+    box-shadow: 0 0 0 1.5px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.5);
+  }
+
+  .eyedropper-btn {
+    display: flex; align-items: center; gap: 6px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    color: var(--text-dim); background: #252525;
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 5px 8px; cursor: pointer; width: 100%;
+    transition: background .1s, color .1s, border-color .1s;
+    user-select: none; margin-top: 4px;
+  }
+  .eyedropper-btn:hover { background: #2e2e2e; color: var(--accent2); border-color: var(--accent2); }
+  .eyedropper-btn.active { background: #1e302d; color: var(--accent2); border-color: var(--accent2); }
+  .eyedropper-icon { font-size: 13px; }
+
+  /* SCENES */
+  .scenes-section { flex-shrink: 0; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); }
+  .scenes-list { padding: 4px 8px 8px; position: relative; }
+  .scene-entry { margin-bottom: 3px; border-radius: 5px; overflow: hidden; border: 1px solid transparent; transition: border-color .15s; position: relative; }
+  .scene-entry.active { border-color: #c4a882; }
+  .scene-entry.drag-over-top { border-top: 2px solid #c4a882; }
+  .scene-entry.drag-over-bottom { border-bottom: 2px solid #c4a882; }
+  .layer-entry.drag-over-top { border-top: 2px solid var(--accent2); }
+  .layer-entry.drag-over-bottom { border-bottom: 2px solid var(--accent2); }
+  .scene-entry.dragging { opacity: .35; }
+  .scene-item { display: flex; align-items: center; gap: 6px; padding: 5px 7px; cursor: pointer; background: transparent; transition: background .1s; border-radius: 4px; }
+  .scene-item:hover { background: #2a2a2a; }
+  .scene-entry.active .scene-item { background: #2a2620; }
+  .scene-entry.active:has(.scene-sub) .scene-item { border-radius: 4px 4px 0 0; }
+  .scene-sub { display: none; padding: 6px 8px 8px; background: #221e18; border-top: 1px solid #3e3428; border-radius: 0 0 4px 4px; }
+  .scene-entry.active .scene-sub { display: block; }
+
+  .scene-opacity-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 0 2px; }
+  .scene-opacity-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-dim); width: 48px; flex-shrink: 0; }
+  .scene-opacity-slider { flex: 1; height: 3px; -webkit-appearance: none; appearance: none; background: var(--border); border-radius: 2px; outline: none; cursor: pointer; }
+  .scene-opacity-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #c4a882; cursor: pointer; }
+  .scene-opacity-slider::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #c4a882; border: none; cursor: pointer; }
+  .scene-opacity-val { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #c4a882; width: 28px; text-align: right; flex-shrink: 0; }
+
+  /* LAYER OPACITY (matches scene-opacity but accent2 teal) */
+  .layer-opacity-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 0 2px; }
+  .layer-opacity-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-dim); width: 48px; flex-shrink: 0; }
+  .layer-opacity-slider { flex: 1; height: 3px; -webkit-appearance: none; appearance: none; background: var(--border); border-radius: 2px; outline: none; cursor: pointer; }
+  .layer-opacity-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--accent2); cursor: pointer; }
+  .layer-opacity-slider::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--accent2); border: none; cursor: pointer; }
+  .layer-opacity-val { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--accent2); width: 28px; text-align: right; flex-shrink: 0; }
+
+  /* LAYERS */
+  .layers-section { flex-shrink: 0; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); }
+  .layers-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 8px; flex-shrink: 0; cursor: pointer; user-select: none; }
+  .layers-header h3 { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .layers-header h3::after { content: '▾'; font-size: 9px; opacity: .5; }
+  .scenes-section.collapsed .layers-header h3::after,
+  .layers-section.collapsed .layers-header h3::after { content: '▸'; }
+  .scenes-section.collapsed .scenes-list,
+  .scenes-section.collapsed #add-scene-btn,
+  .layers-section.collapsed .layers-list,
+  .layers-section.collapsed #add-layer-btn { display: none; }
+  .add-layer-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; background: #2a2a2a; border: 1px solid var(--border); color: var(--accent2); padding: 3px 8px; border-radius: 3px; cursor: pointer; user-select: none; transition: background .1s; }
+  .add-layer-btn:hover { background: #383838; }
+  .layers-list { padding: 4px 8px 8px; position: relative; }
+
+  .layer-entry { margin-bottom: 3px; border-radius: 5px; overflow: visible; border: 1px solid transparent; transition: border-color .15s; position: relative; }
+  .layer-entry.active { border-color: var(--accent2); }
+  .layer-entry.dragging { opacity: .35; }
+
+  .layer-item { display: flex; align-items: center; gap: 6px; padding: 5px 7px; cursor: pointer; background: transparent; transition: background .1s; border-radius: 4px; }
+  .layer-item:hover { background: #2a2a2a; }
+  .layer-entry.active .layer-item { background: #252f2d; }
+  .layer-entry.active:has(.layer-sub) .layer-item { border-radius: 4px 4px 0 0; }
+
+  .layer-handle { width: 12px; height: 14px; flex-shrink: 0; cursor: grab; opacity: .25; display: flex; align-items: center; justify-content: center; font-size: 11px; transition: opacity .1s; }
+  .layer-handle:hover { opacity: .8; }
+  .layer-handle:active { cursor: grabbing; }
+
+  .layer-vis { width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; opacity: .45; transition: opacity .1s; display: flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; }
+  .layer-vis:hover { opacity: 1; }
+  .layer-vis.on { opacity: .85; }
+  .layer-vis.soloed-out { opacity: .15; }
+  .layer-solo { width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; opacity: .25; transition: opacity .1s, color .1s; display: flex; align-items: center; justify-content: center; font-size: 8px; line-height: 14px; color: var(--text-dim); margin-left: -3px; }
+  .layer-solo:hover { opacity: .8; }
+  .layer-solo.on { opacity: 1; color: var(--accent2); }
+  .scene-solo { width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; opacity: .25; transition: opacity .1s, color .1s; display: flex; align-items: center; justify-content: center; font-size: 8px; line-height: 14px; color: var(--text-dim); margin-left: -3px; }
+  .scene-solo:hover { opacity: .8; }
+  .scene-solo.on { opacity: 1; color: #c4a882; }
+  .layer-name-display { flex: 1; font-size: 11px; color: var(--text); font-family: 'IBM Plex Sans', sans-serif; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .layer-name-input { flex: 1; font-size: 11px; color: #fff; outline: none; background: #1a2a28; border: none; border-bottom: 1px solid var(--accent2); font-family: 'IBM Plex Sans', sans-serif; min-width: 0; padding: 1px 4px; border-radius: 3px; }
+
+  .layer-sub { display: none; padding: 6px 8px 8px; background: #1e2826; border-top: 1px solid #2e3e3a; border-radius: 0 0 4px 4px; }
+  .layer-entry.active .layer-sub { display: block; }
+  .sub-actions { display: flex; gap: 5px; }
+
+  /* LAYER PROPERTIES */
+  .layer-props { margin-bottom: 8px; }
+  .layer-props-toggle { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; padding: 4px 2px; }
+  .layer-props-toggle:hover .layer-props-label { color: var(--accent2); }
+  .layer-props-arrow { font-size: 8px; color: var(--text-dim); transition: transform .15s; width: 10px; flex-shrink: 0; }
+  .layer-props-arrow.open { transform: rotate(90deg); }
+  .layer-props-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+  .layer-props-body { padding: 2px 0 4px 12px; display: none; }
+  .layer-props-body.open { display: block; }
+
+  .layer-prop-row { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; padding: 3px 2px; }
+  .layer-prop-row:hover .layer-prop-name { color: #aaa; }
+  .layer-prop-arrow { font-size: 8px; color: var(--text-dim); transition: transform .15s; width: 10px; flex-shrink: 0; }
+  .layer-prop-arrow.open { transform: rotate(90deg); }
+  .layer-prop-name { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #888; flex: 1; }
+  .layer-prop-val { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--accent2); flex-shrink: 0; }
+
+  .layer-prop-colors { padding: 2px 0 2px 22px; display: none; }
+  .layer-prop-colors.open { display: block; }
+  .layer-color-row { display: flex; align-items: center; gap: 6px; padding: 2px 2px; }
+  .layer-color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,.15); }
+  .layer-color-name { font-family: 'IBM Plex Mono', monospace; font-size: 8px; color: #666; flex: 1; }
+  .layer-color-val { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--accent2); flex-shrink: 0; }
+  .sub-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 4px 10px; border-radius: 3px; border: 1px solid var(--border); cursor: pointer; transition: background .1s; user-select: none; flex: 1; text-align: center; }
+  .sub-btn.rename { background: #2a3830; color: var(--accent2); border-color: #3a5048; }
+  .sub-btn.rename:hover { background: #324840; }
+  .sub-btn.delete { background: #2d1a1a; color: #ff8a7a; border-color: #5a2a2a; }
+  .sub-btn.delete:hover { background: #3d2020; }
+
+  .sub-btn.rename-scene { background: #2a2820; color: #c4a882; border-color: #4a3e28; }
+  .sub-btn.rename-scene:hover { background: #342e1a; }
+
+  /* MEASUREMENTS */
+  .measurements-section { flex-shrink: 0; display: flex; flex-direction: column; }
+  .measurements-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 8px; flex-shrink: 0; cursor: pointer; user-select: none; }
+  .measurements-header h3 { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .measurements-header h3::after { content: '▾'; font-size: 9px; opacity: .5; }
+  .measurements-section.collapsed .measurements-header h3::after { content: '▸'; }
+  .measurements-section.collapsed .measurements-list,
+  .measurements-section.collapsed #add-measurement-btn { display: none; }
+  .add-measurement-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; background: #2a2a2a; border: 1px solid var(--border); color: #a0c8e8; padding: 3px 8px; border-radius: 3px; cursor: pointer; user-select: none; transition: background .1s; }
+  .add-measurement-btn:hover { background: #383838; }
+  .measurements-list { padding: 4px 8px 8px; position: relative; }
+
+  .meas-entry { margin-bottom: 3px; border-radius: 5px; overflow: visible; border: 1px solid transparent; transition: border-color .15s; position: relative; }
+  .meas-entry.active { border-color: #a0c8e8; }
+  .meas-entry.dragging { opacity: .35; }
+  .meas-entry.drag-over-top { border-top: 2px solid #a0c8e8; }
+  .meas-entry.drag-over-bottom { border-bottom: 2px solid #a0c8e8; }
+
+  .meas-item { display: flex; align-items: center; gap: 6px; padding: 5px 7px; cursor: pointer; background: transparent; transition: background .1s; border-radius: 4px; }
+  .meas-item:hover { background: #2a2a2a; }
+  .meas-entry.active .meas-item { background: #1e2830; }
+  .meas-entry.active:has(.meas-sub) .meas-item { border-radius: 4px 4px 0 0; }
+
+  .meas-vis { width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; opacity: .45; transition: opacity .1s; display: flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; }
+  .meas-vis:hover { opacity: 1; }
+  .meas-vis.on { opacity: .85; }
+  .meas-vis.soloed-out { opacity: .15; }
+  .meas-solo { width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; opacity: .25; transition: opacity .1s, color .1s; display: flex; align-items: center; justify-content: center; font-size: 8px; line-height: 14px; color: var(--text-dim); margin-left: -3px; }
+  .meas-solo:hover { opacity: .8; }
+  .meas-solo.on { opacity: 1; color: #a0c8e8; }
+  .meas-name-display { flex: 1; font-size: 11px; color: var(--text); font-family: 'IBM Plex Sans', sans-serif; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meas-name-input { flex: 1; font-size: 11px; color: #fff; outline: none; background: #1a2430; border: none; border-bottom: 1px solid #a0c8e8; font-family: 'IBM Plex Sans', sans-serif; min-width: 0; padding: 1px 4px; border-radius: 3px; }
+
+  .meas-sub { display: none; padding: 6px 8px 8px; background: #1a2430; border-top: 1px solid #2a3a48; border-radius: 0 0 4px 4px; }
+  .meas-entry.active .meas-sub { display: block; }
+
+  .meas-opacity-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 0 2px; }
+  .meas-opacity-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-dim); width: 48px; flex-shrink: 0; }
+  .meas-opacity-slider { flex: 1; height: 3px; -webkit-appearance: none; appearance: none; background: var(--border); border-radius: 2px; outline: none; cursor: pointer; }
+  .meas-opacity-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #a0c8e8; cursor: pointer; }
+  .meas-opacity-slider::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #a0c8e8; border: none; cursor: pointer; }
+  .meas-opacity-val { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #a0c8e8; width: 28px; text-align: right; flex-shrink: 0; }
+
+  .sub-btn.rename-meas { background: #1e2830; color: #a0c8e8; border-color: #2e4858; }
+  .sub-btn.rename-meas:hover { background: #243040; }
+
+  /* MEASUREMENT PROPERTIES */
+  .meas-props { margin-bottom: 8px; }
+  .meas-props-toggle { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; padding: 4px 2px; }
+  .meas-props-toggle:hover .meas-props-label { color: #a0c8e8; }
+  .meas-props-arrow { font-size: 8px; color: var(--text-dim); transition: transform .15s; width: 10px; flex-shrink: 0; }
+  .meas-props-arrow.open { transform: rotate(90deg); }
+  .meas-props-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+  .meas-props-body { padding: 2px 0 4px 12px; display: none; }
+  .meas-props-body.open { display: block; }
+  .meas-prop-row { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; padding: 3px 2px; }
+  .meas-prop-row:hover .meas-prop-name { color: #aaa; }
+  .meas-prop-arrow { font-size: 8px; color: var(--text-dim); transition: transform .15s; width: 10px; flex-shrink: 0; }
+  .meas-prop-arrow.open { transform: rotate(90deg); }
+  .meas-prop-name { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #888; flex: 1; }
+  .meas-prop-val { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #a0c8e8; flex-shrink: 0; }
+  .meas-prop-colors { padding: 2px 0 2px 22px; display: none; }
+  .meas-prop-colors.open { display: block; }
+  .meas-color-row { display: flex; align-items: center; gap: 6px; padding: 2px 2px; }
+  .meas-color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,.15); }
+  .meas-color-name { font-family: 'IBM Plex Mono', monospace; font-size: 8px; color: #666; flex: 1; }
+  .meas-color-val { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #a0c8e8; flex-shrink: 0; }
+  .sub-btn.set-scale-btn { background: #1e2830; color: #7eb8a4; border-color: #2e4858; margin-bottom: 8px; }
+  .sub-btn.set-scale-btn:hover { background: #243040; }
+
+  /* SET SCALE OVERLAY */
+  #scale-hint { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.75); color: #e8d5a3; font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 14px; border-radius: 4px; pointer-events: none; white-space: nowrap; z-index: 20; display: none; }
+  #scale-distance-modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
+  #scale-distance-modal.hidden { display: none; }
+  #scale-distance-box { background: #252525; border: 1px solid #444; border-radius: 6px; padding: 20px 24px; min-width: 260px; text-align: center; }
+  #scale-distance-box p { font-size: 13px; color: var(--text); margin-bottom: 14px; line-height: 1.5; }
+  #scale-dist-input { font-family: 'IBM Plex Mono', monospace; font-size: 18px; color: #fff; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; padding: 6px 12px; width: 120px; text-align: center; outline: none; margin-bottom: 6px; }
+  #scale-dist-input:focus { border-color: var(--accent2); }
+  #scale-dist-unit { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-dim); margin-bottom: 18px; }
+  #scale-dist-actions { display: flex; gap: 10px; justify-content: center; }
+  .scene-name-input { flex: 1; font-size: 11px; color: #fff; outline: none; background: #2a2216; border: none; border-bottom: 1px solid #c4a882; font-family: 'IBM Plex Sans', sans-serif; min-width: 0; padding: 1px 4px; border-radius: 3px; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal-overlay.hidden { display: none; }
+  .modal-box { background: #252525; border: 1px solid #444; border-radius: 6px; padding: 20px 24px; min-width: 260px; text-align: center; }
+  .modal-box p { font-size: 13px; color: var(--text); margin-bottom: 18px; line-height: 1.5; }
+  .modal-name { color: var(--accent); font-family: 'IBM Plex Mono', monospace; }
+  .modal-actions { display: flex; gap: 10px; justify-content: center; }
+  .modal-btn { font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 18px; border-radius: 4px; border: 1px solid var(--border); cursor: pointer; transition: background .1s; }
+  .modal-btn.cancel { background: #2a2a2a; color: var(--text); }
+  .modal-btn.cancel:hover { background: #383838; }
+  .modal-btn.confirm { background: #5a1a1a; color: #ff8a7a; border-color: #7a2a2a; }
+  .modal-btn.confirm:hover { background: #6a2020; }
+
+  /* RIGHT PANEL - CALCULATIONS */
+  .right-panel { width: 220px; background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
+  .right-panel::-webkit-scrollbar { display: none; }
+  .calc-section { flex-shrink: 0; display: flex; flex-direction: column; }
+  .calc-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 8px; flex-shrink: 0; cursor: pointer; user-select: none; }
+  .calc-header h3 { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .calc-header h3::after { content: '▾'; font-size: 9px; opacity: .5; }
+  .calc-section.collapsed .calc-header h3::after { content: '▸'; }
+  .calc-section.collapsed .calc-list { display: none; }
+  .calc-section.collapsed #add-calc-btn { display: none; }
+  .add-calc-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; background: #2a2a2a; border: 1px solid var(--border); color: #b8a4d4; padding: 3px 8px; border-radius: 3px; cursor: pointer; user-select: none; transition: background .1s; }
+  .add-calc-btn:hover { background: #383838; }
+  .calc-list { padding: 4px 8px 8px; }
+
+  .calc-entry { margin-bottom: 3px; border-radius: 5px; overflow: hidden; border: 1px solid transparent; transition: border-color .15s; }
+  .calc-entry.active { border-color: #b8a4d4; }
+  .calc-entry.dragging { opacity: .35; }
+  .calc-entry.drag-over-top { border-top: 2px solid #b8a4d4; }
+  .calc-entry.drag-over-bottom { border-bottom: 2px solid #b8a4d4; }
+
+  .calc-item { display: flex; align-items: center; gap: 6px; padding: 5px 7px; cursor: pointer; background: transparent; transition: background .1s; border-radius: 4px; }
+  .calc-item:hover { background: #2a2a2a; }
+  .calc-entry.active .calc-item { background: #26222e; }
+  .calc-entry.active:has(.calc-sub) .calc-item { border-radius: 4px 4px 0 0; }
+
+  .calc-handle { width: 12px; height: 14px; flex-shrink: 0; cursor: grab; opacity: .25; display: flex; align-items: center; justify-content: center; font-size: 11px; transition: opacity .1s; }
+  .calc-handle:hover { opacity: .8; }
+  .calc-handle:active { cursor: grabbing; }
+
+  .calc-name-display { flex: 1; font-size: 11px; color: var(--text); font-family: 'IBM Plex Sans', sans-serif; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .calc-result { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #b8a4d4; flex-shrink: 0; white-space: nowrap; max-width: 70px; overflow: hidden; text-overflow: ellipsis; }
+  .calc-result.error { color: #ff8a7a; font-size: 9px; }
+
+  .calc-sub { display: none; padding: 6px 8px 8px; background: #211e28; border-top: 1px solid #352e42; border-radius: 0 0 4px 4px; }
+  .calc-entry.active .calc-sub { display: block; }
+
+  .calc-formula-preview { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-dim); background: #1a1720; border: 1px solid #2e2840; border-radius: 4px; padding: 6px 8px; margin-bottom: 8px; min-height: 32px; line-height: 1.5; word-break: break-all; cursor: pointer; transition: border-color .1s; }
+  .calc-formula-preview:hover { border-color: #4e3e60; color: #aaa; }
+  .calc-formula-preview .calc-badge { display: inline-flex; flex-direction: column; background: #2e2448; border: 1px solid #4e3e70; border-radius: 3px; padding: 1px 5px; margin: 0 2px; vertical-align: middle; cursor: default; }
+  .calc-formula-preview .calc-badge .badge-prop { font-size: 8px; color: #b8a4d4; line-height: 1.2; }
+  .calc-formula-preview .calc-badge .badge-layer { font-size: 7px; color: #7a6a8a; line-height: 1.2; }
+  .calc-formula-preview.empty { font-style: italic; color: #444; }
+
+  .calc-sub-actions { display: flex; gap: 5px; }
+
+  /* CALC MODAL */
+  .calc-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 300; }
+  .calc-modal-overlay.hidden { display: none; }
+  .calc-modal-box { background: #1e1e1e; border: 1px solid #3a3a3a; border-radius: 8px; width: 540px; max-width: 90vw; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .calc-modal-title { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: #b8a4d4; text-transform: uppercase; letter-spacing: .1em; }
+  .calc-modal-formula-wrap { background: #141320; border: 1px solid #2e2840; border-radius: 6px; padding: 10px 12px; min-height: 64px; cursor: text; outline: none; line-height: 2.6; word-break: break-word; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #ccc; }
+  .calc-modal-formula-wrap:focus { border-color: #6e5e90; }
+
+  .formula-token { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #ccc; background: transparent; border: none; outline: none; min-width: 4px; flex-shrink: 0; padding: 2px 0; }
+  .formula-badge { display: inline-flex; flex-direction: column; background: #2e2448; border: 1px solid #5e4e80; border-radius: 4px; padding: 2px 7px; cursor: default; user-select: none; position: relative; vertical-align: middle; margin: 0 2px; }
+  .formula-badge.selected { background: #5a4a8a; border-color: #8a70c0; }
+  ::selection { background: #4a3a78; color: #fff; }
+  .formula-badge::selection, .formula-badge *::selection { background: transparent; }
+  .calc-modal-formula-wrap:focus .formula-badge { box-shadow: none; }
+  .formula-badge.selected { background: #5a4a8a; border-color: #8a70c0; }
+  .formula-badge .badge-prop { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #b8a4d4; line-height: 1.3; }
+  .formula-badge .badge-layer { font-family: 'IBM Plex Mono', monospace; font-size: 8px; color: #7a6a9a; line-height: 1.2; }
+  .badge-remove { position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; background: #ff6b6b; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #fff; opacity: 0; transition: opacity .1s; cursor: pointer; }
+
+  .calc-modal-toolbar { display: flex; align-items: center; gap: 8px; }
+  .insert-prop-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; background: #2a2448; border: 1px solid #4a3a68; color: #b8a4d4; padding: 5px 10px; border-radius: 4px; cursor: pointer; transition: background .1s; user-select: none; display: flex; align-items: center; gap: 5px; }
+  .insert-prop-btn:hover { background: #342e58; }
+  .insert-calc-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; background: #1e2e28; border: 1px solid #2e4e40; color: #7eb8a4; padding: 5px 10px; border-radius: 4px; cursor: pointer; transition: background .1s; user-select: none; display: flex; align-items: center; gap: 5px; }
+  .insert-calc-btn:hover { background: #243c32; }
+  .calc-modal-hint { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #444; }
+  .formula-badge.calc-ref { background: #1e2e28; border-color: #3e6e58; }
+  .formula-badge.calc-ref.selected { background: #2a4a3a; border-color: #5e9e80; }
+  .formula-badge.calc-ref .badge-prop { color: #7eb8a4; }
+  .formula-badge.calc-ref .badge-layer { color: #4a7a62; }
+
+  .calc-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* INSERT PROPERTY DROPDOWN */
+  .prop-dropdown { position: fixed; background: #252530; border: 1px solid #3a3a50; border-radius: 6px; min-width: 180px; z-index: 400; box-shadow: 0 8px 24px rgba(0,0,0,.5); overflow: hidden; }
+  .prop-dropdown.hidden { display: none; }
+  .prop-dd-item { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; color: var(--text); padding: 7px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background .1s; }
+  .prop-dd-item:hover { background: #2e2e3e; }
+  .prop-dd-item.header { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .1em; padding: 8px 12px 4px; cursor: default; background: transparent; }
+  .prop-dd-item.header:hover { background: transparent; }
+  .prop-dd-item.back { color: #7a6a9a; font-size: 10px; }
+  .prop-dd-sep { height: 1px; background: #333340; margin: 3px 0; }
+  .prop-dd-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,.15); }
+  .canvas-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .ruler-corner { width: 20px; height: 20px; background: #1a1a1a; flex-shrink: 0; }
+  .ruler-row { display: flex; flex-shrink: 0; height: 20px; }
+  .ruler-h { flex: 1; background: #1a1a1a; position: relative; overflow: hidden; }
+  .ruler-v { width: 20px; background: #1a1a1a; position: relative; overflow: hidden; flex-shrink: 0; }
+  .canvas-row { display: flex; flex: 1; overflow: hidden; }
+  .canvas-wrap { flex: 1; position: relative; overflow: hidden; background: var(--grid-bg); cursor: crosshair; }
+  canvas#grid-canvas { position: absolute; top: 0; left: 0; image-rendering: pixelated; }
+  canvas.ruler-canvas { position: absolute; top: 0; left: 0; image-rendering: pixelated; }
+
+  /* UI CONTROLS */
+  .header-spacer { flex: 1; }
+  .ui-controls { display: flex; align-items: center; gap: 4px; }
+  .ui-ctrl-btn { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); background: transparent; border: 1px solid var(--border); border-radius: 3px; padding: 3px 8px; cursor: pointer; transition: color .1s, border-color .1s, background .1s; user-select: none; outline: none; white-space: nowrap; }
+  .ui-ctrl-btn:hover { color: var(--text); border-color: #555; background: #2a2a2a; }
+  .ui-ctrl-btn.off { color: #444; border-color: #2a2a2a; background: transparent; }
+  .ui-ctrl-btn.off:hover { color: #666; border-color: #444; background: #222; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ArchiGrid</div>
+  <div class="header-sep"></div>
+  <div class="undo-redo">
+    <button class="ur-btn" id="undo-btn" tabindex="-1" disabled title="Undo (Ctrl+Z)">↩ Undo</button>
+    <button class="ur-btn" id="redo-btn" tabindex="-1" disabled title="Redo (Ctrl+Shift+Z)">↪ Redo</button>
+  </div>
+  <div class="header-sep"></div>
+  <button class="info-btn" id="settings-btn" tabindex="-1">⚙ Settings</button>
+  <button class="io-btn" id="export-btn" tabindex="-1" title="Export project as JSON">↑ Export</button>
+  <button class="io-btn" id="import-btn" tabindex="-1" title="Import project from JSON">↓ Import</button>
+  <div class="header-sep" id="filename-sep" style="display:none;"></div>
+  <span id="project-filename" class="header-filename"></span>
+  <input type="file" id="import-file-input" accept=".json" style="display:none;">
+  <div class="header-sep"></div>
+  <button class="info-btn" id="instructions-btn" tabindex="-1">Instructions</button>
+  <button class="info-btn" id="shortcuts-btn" tabindex="-1">Shortcuts</button>
+  <div class="header-spacer"></div>
+  <div class="ui-controls">
+    <button class="ui-ctrl-btn" id="ui-left-btn" tabindex="-1" title="Toggle Left Panel">Left Panel</button>
+    <button class="ui-ctrl-btn" id="ui-right-btn" tabindex="-1" title="Toggle Right Panel">Right Panel</button>
+    <button class="ui-ctrl-btn" id="ui-rulers-btn" tabindex="-1" title="Toggle Rulers">Rulers</button>
+    <button class="ui-ctrl-btn" id="ui-grid-btn" tabindex="-1" title="Toggle Grid">Grid</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <div class="left-panel">
+
+    <div class="panel-section" id="section-brush-size">
+      <h3>Brush Size</h3>
+      <div class="panel-body">
+      <div class="brush-row">
+        <span class="brush-axis-label">X</span>
+        <div class="brush-controls">
+          <div class="brush-btn" id="bx-minus">−</div>
+          <input class="brush-input" id="bx-val" type="text" value="5">
+          <div class="brush-btn" id="bx-plus">+</div>
+          <span class="brush-unit">cm</span>
+        </div>
+      </div>
+      <div class="brush-slider-row">
+        <input class="brush-slider" id="bx-slider" type="range" min="1" max="100" step="1" value="1">
+      </div>
+      <div class="brush-row">
+        <span class="brush-axis-label">Y</span>
+        <div class="brush-controls">
+          <div class="brush-btn" id="by-minus">−</div>
+          <input class="brush-input" id="by-val" type="text" value="5">
+          <div class="brush-btn" id="by-plus">+</div>
+          <span class="brush-unit">cm</span>
+        </div>
+      </div>
+      <div class="brush-slider-row">
+        <input class="brush-slider" id="by-slider" type="range" min="1" max="100" step="1" value="1">
+      </div>
+      </div>
+    </div>
+
+    <div class="panel-section" id="section-brush-color">
+      <h3>Brush Color</h3>
+      <div class="panel-body">
+      <div class="color-presets" id="color-presets"></div>
+      <div class="hsb-picker">
+        <div class="hsb-row">
+          <span class="hsb-label">H</span>
+          <input class="hsb-slider" id="hsb-h" type="range" min="0" max="360" step="1" value="160">
+        </div>
+        <div class="hsb-row">
+          <span class="hsb-label">S</span>
+          <input class="hsb-slider" id="hsb-s" type="range" min="0" max="100" step="1" value="36">
+        </div>
+        <div class="hsb-row">
+          <span class="hsb-label">B</span>
+          <input class="hsb-slider" id="hsb-b" type="range" min="0" max="100" step="1" value="72">
+        </div>
+      </div>
+      <div class="eyedropper-btn" id="eyedropper-btn">
+        <span class="eyedropper-icon">🔬</span>
+        <span id="eyedropper-label">Pick from canvas</span>
+      </div>
+      </div>
+    </div>
+
+    <div class="scenes-section">
+      <div class="layers-header">
+        <h3>Scenes</h3>
+        <div class="add-layer-btn" id="add-scene-btn" style="color:#c4a882;">+</div>
+      </div>
+      <div class="scenes-list" id="scenes-list"></div>
+    </div>
+
+    <div class="layers-section">
+      <div class="layers-header">
+        <h3>Layers</h3>
+        <div class="add-layer-btn" id="add-layer-btn">+</div>
+      </div>
+      <div class="layers-list" id="layers-list"></div>
+    </div>
+
+    <div class="measurements-section">
+      <div class="measurements-header">
+        <h3>Measurements</h3>
+        <div class="add-measurement-btn" id="add-measurement-btn">+</div>
+      </div>
+      <div class="measurements-list" id="measurements-list"></div>
+    </div>
+
+  </div>
+
+  <div class="canvas-area">
+    <div class="ruler-row">
+      <div class="ruler-corner" style="border-bottom:1px solid var(--border);border-right:1px solid var(--border);"></div>
+      <div class="ruler-h" style="border-bottom:1px solid var(--border);"><canvas class="ruler-canvas" id="ruler-top"></canvas></div>
+      <div class="ruler-corner" style="border-bottom:1px solid var(--border);border-left:1px solid var(--border);"></div>
+    </div>
+    <div class="canvas-row">
+      <div class="ruler-v" style="border-right:1px solid var(--border);"><canvas class="ruler-canvas" id="ruler-left"></canvas></div>
+      <div class="canvas-wrap" id="canvas-wrap"><canvas id="grid-canvas"></canvas><div id="scale-hint"></div></div>
+      <div class="ruler-v" style="border-left:1px solid var(--border);"><canvas class="ruler-canvas" id="ruler-right"></canvas></div>
+    </div>
+    <div class="ruler-row">
+      <div class="ruler-corner" style="border-top:1px solid var(--border);border-right:1px solid var(--border);"></div>
+      <div class="ruler-h" style="border-top:1px solid var(--border);"><canvas class="ruler-canvas" id="ruler-bottom"></canvas></div>
+      <div class="ruler-corner" style="border-top:1px solid var(--border);border-left:1px solid var(--border);"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel" id="right-panel">
+    <div class="calc-section" id="calc-section">
+      <div class="calc-header" id="calc-header">
+        <h3>Calculations</h3>
+        <div class="add-calc-btn" id="add-calc-btn">+</div>
+      </div>
+      <div class="calc-list" id="calc-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="scale-distance-modal" class="hidden">
+  <div id="scale-distance-box">
+    <p>Real distance between the two points:</p>
+    <input id="scale-dist-input" type="number" min="0.01" step="0.01" placeholder="5.00">
+    <div id="scale-dist-unit">meters</div>
+    <div id="scale-dist-actions">
+      <div class="modal-btn cancel" id="scale-dist-cancel">Cancel</div>
+      <div class="modal-btn confirm" id="scale-dist-confirm" style="background:#1e3828;color:#7eb8a4;border-color:#2e5840;">Apply</div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="scene-file-input" accept="image/*" style="display:none;">
+
+<div class="modal-overlay hidden" id="delete-scene-modal">
+  <div class="modal-box">
+    <p>Delete scene <span class="modal-name" id="modal-scene-name"></span>?<br>
+    <small style="color:var(--text-dim)">This cannot be undone.</small></p>
+    <div class="modal-actions">
+      <div class="modal-btn cancel" id="modal-scene-cancel">Cancel</div>
+      <div class="modal-btn confirm" id="modal-scene-confirm">Delete</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="delete-modal">
+  <div class="modal-box">
+    <p>Delete layer <span class="modal-name" id="modal-layer-name"></span>?<br>
+    <small style="color:var(--text-dim)">This cannot be undone.</small></p>
+    <div class="modal-actions">
+      <div class="modal-btn cancel" id="modal-cancel">Cancel</div>
+      <div class="modal-btn confirm" id="modal-confirm">Delete</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="delete-calc-modal">
+  <div class="modal-box">
+    <p>Delete calculation <span class="modal-name" id="modal-calc-name"></span>?<br>
+    <small style="color:var(--text-dim)">This cannot be undone.</small></p>
+    <div class="modal-actions">
+      <div class="modal-btn cancel" id="modal-calc-cancel">Cancel</div>
+      <div class="modal-btn confirm" id="modal-calc-confirm">Delete</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="delete-meas-modal">
+  <div class="modal-box">
+    <p>Delete measurement <span class="modal-name" id="modal-meas-name"></span>?<br>
+    <small style="color:var(--text-dim)">This cannot be undone.</small></p>
+    <div class="modal-actions">
+      <div class="modal-btn cancel" id="modal-meas-cancel">Cancel</div>
+      <div class="modal-btn confirm" id="modal-meas-confirm">Delete</div>
+    </div>
+  </div>
+</div>
+
+<div id="drag-overlay" style="display:none;position:fixed;inset:0;z-index:9999;cursor:grabbing;"></div>
+
+<!-- INSTRUCTIONS MODAL -->
+<div class="help-modal-overlay hidden" id="instructions-modal">
+  <div class="help-modal-box">
+    <div class="help-modal-header">
+      <span class="help-modal-title">Instructions</span>
+      <button class="help-modal-close" id="instructions-close">✕</button>
+    </div>
+    <div class="help-modal-body">
+
+      <div class="help-section">
+        <div class="help-section-title">What is ArchiGrid</div>
+        <p>ArchiGrid is a grid-based architectural drawing tool. Every cell is 5×5 cm. You paint cells with colors to represent spaces, walls, openings, or any programmatic element you define.</p>
+        <p>The canvas is infinite — pan freely and zoom in or out to work at any scale.</p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Layers</div>
+        <p>Organize your drawing into layers — one per floor, program type, or phase. Each layer has its own color cells, opacity, and visibility. The active layer always renders on top.</p>
+        <p>Drag the handle (⠿) to reorder. Click the dot (●) to toggle visibility. Click (◉) to solo a layer and hide all others temporarily.</p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Brush</div>
+        <p>Set brush size in X and Y independently (minimum 5cm = 1 cell). Paint with left click, erase with right click. The brush preview follows your cursor on the canvas and rulers.</p>
+        <p>Choose from 14 palette swatches or fine-tune with the HSB sliders. Use the eyedropper to pick a color directly from the canvas.</p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Scenes</div>
+        <p>Import reference images (floor plan scans, site maps, photographs) as Scenes. Each scene can be moved, rotated, and scaled freely on the canvas.</p>
+        <p>Use <strong>Set Scale</strong> to calibrate a scene to real-world dimensions: click two points on the image, then enter the real distance in meters. All subsequent measurements will be accurate.</p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Calculations</div>
+        <p>Build formulas using layer properties as building blocks. Insert badges for Area, Cell Count, or per-color variants. Combine them with arithmetic operators (+, −, ×, ÷) typed freely between badges.</p>
+        <p>Reference other Calculations inside a formula using Insert Calc. Results update live as you draw. Circular references are detected automatically and shown as ERR.</p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Export / Import</div>
+        <p>Export saves the entire project as a .json file — all layers, cells, scenes (including images as base64), calculations, palette, brush settings, and viewport position.</p>
+        <p>Import restores a previously exported project completely. The filename is remembered and shown in the header for reference.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- SHORTCUTS MODAL -->
+<div class="help-modal-overlay hidden" id="shortcuts-modal">
+  <div class="help-modal-box">
+    <div class="help-modal-header">
+      <span class="help-modal-title">Shortcuts</span>
+      <button class="help-modal-close" id="shortcuts-close">✕</button>
+    </div>
+    <div class="help-modal-body">
+
+      <div class="help-section">
+        <div class="help-section-title">Canvas Navigation</div>
+        <div class="shortcuts-grid">
+          <span class="sc-key"><kbd>Scroll</kbd></span><span class="sc-desc">Zoom in / out</span>
+          <span class="sc-key"><kbd>Middle click</kbd> + drag</span><span class="sc-desc">Pan canvas</span>
+          <span class="sc-key"><kbd>Middle click</kbd> ×2</span><span class="sc-desc">Reset pan to origin</span>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Drawing</div>
+        <div class="shortcuts-grid">
+          <span class="sc-key"><kbd>Left click</kbd></span><span class="sc-desc">Paint cells</span>
+          <span class="sc-key"><kbd>Right click</kbd></span><span class="sc-desc">Erase cells</span>
+          <span class="sc-key"><kbd>Shift</kbd> + click</span><span class="sc-desc">Draw straight line from last painted cell</span>
+          <span class="sc-key"><kbd>Shift</kbd> + drag</span><span class="sc-desc">Lock axis — horizontal or vertical only</span>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">History</div>
+        <div class="shortcuts-grid">
+          <span class="sc-key"><kbd>Ctrl</kbd> + <kbd>Z</kbd></span><span class="sc-desc">Undo</span>
+          <span class="sc-key"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></span><span class="sc-desc">Redo</span>
+          <span class="sc-key"><kbd>Ctrl</kbd> + <kbd>Y</kbd></span><span class="sc-desc">Redo (alternate)</span>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Color</div>
+        <div class="shortcuts-grid">
+          <span class="sc-key">Click swatch</span><span class="sc-desc">Select palette color</span>
+          <span class="sc-key">HSB sliders</span><span class="sc-desc">Fine-tune active swatch color</span>
+          <span class="sc-key">Eyedropper</span><span class="sc-desc">Pick color from any painted cell</span>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Scenes</div>
+        <div class="shortcuts-grid">
+          <span class="sc-key">Drag image</span><span class="sc-desc">Move scene freely</span>
+          <span class="sc-key">Drag corner handle</span><span class="sc-desc">Scale scene</span>
+          <span class="sc-key">Drag circle handle</span><span class="sc-desc">Rotate scene (snaps at 0°, 90°, 180°, 270°)</span>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Modals</div>
+        <div class="shortcuts-grid">
+          <span class="sc-key"><kbd>Enter</kbd></span><span class="sc-desc">Confirm / Save</span>
+          <span class="sc-key"><kbd>Escape</kbd></span><span class="sc-desc">Cancel / Close</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- CALC EDIT MODAL -->
+<div class="calc-modal-overlay hidden" id="calc-modal">
+  <div class="calc-modal-box">
+    <div class="calc-modal-title" id="calc-modal-title">Edit Calculation</div>
+    <div class="calc-modal-formula-wrap" id="calc-formula-wrap" contenteditable="true" spellcheck="false"></div>
+    <div class="calc-modal-toolbar">
+      <div class="insert-prop-btn" id="insert-prop-btn">
+        <span style="font-size:13px;line-height:1;">+</span>
+        <span>Insert Property</span>
+      </div>
+      <div class="insert-calc-btn" id="insert-calc-btn">
+        <span style="font-size:13px;line-height:1;">+</span>
+        <span>Insert Calc</span>
+      </div>
+      <span class="calc-modal-hint">Type operators between</span>
+    </div>
+    <div class="calc-modal-actions">
+      <div class="modal-btn cancel" id="calc-modal-cancel">Cancel</div>
+      <div class="modal-btn confirm" id="calc-modal-save" style="background:#2a2448;color:#b8a4d4;border-color:#4a3a68;">Save</div>
+    </div>
+  </div>
+</div>
+
+<!-- PROPERTY DROPDOWN -->
+<div class="prop-dropdown hidden" id="prop-dropdown"></div>
+
+<!-- SETTINGS MODAL -->
+<div class="settings-modal-overlay hidden" id="settings-modal">
+  <div class="settings-modal-box">
+    <div class="settings-modal-header">
+      <span class="settings-modal-title">⚙ Settings</span>
+      <button class="settings-modal-close" id="settings-close">✕</button>
+    </div>
+    <div class="settings-modal-body">
+      <div>
+        <div class="settings-section-title">Canvas</div>
+        <div class="settings-row">
+          <span class="settings-row-label">Grid Lines</span>
+          <div class="settings-swatches" id="settings-gridlines-swatches"></div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row-label">Grid Background</span>
+          <div class="settings-swatches" id="settings-gridbg-swatches"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CALC REF DROPDOWN -->
+<div class="prop-dropdown hidden" id="calc-ref-dropdown"></div>
+
+<script>
+// ── Constants ──
+const CELL_CM  = 5;
+const ZOOM_MIN = 0.2, ZOOM_MAX = 30;
+const BRUSH_MIN = 1,  BRUSH_MAX = 100;
+const RULER_BG = '#1a1a1a', RULER_TICK = '#555', RULER_TEXT = '#666', RULER_ACCENT = '#e8d5a3';
+
+// ── DOM ──
+const wrap        = document.getElementById('canvas-wrap');
+const canvas      = document.getElementById('grid-canvas');
+const ctx         = canvas.getContext('2d');
+const rulerTop    = document.getElementById('ruler-top');
+const rulerBottom = document.getElementById('ruler-bottom');
+const rulerLeft   = document.getElementById('ruler-left');
+const rulerRight  = document.getElementById('ruler-right');
+const rtx = rulerTop.getContext('2d');
+const rbx = rulerBottom.getContext('2d');
+const rlx = rulerLeft.getContext('2d');
+const rrx = rulerRight.getContext('2d');
+
+// ── State ──
+let viewX = 0, viewY = 0, zoom = 2;
+let brushX = 1, brushY = 1;
+let mouseCell = null;
+let isPanning = false, panStartX = 0, panStartY = 0, panViewX = 0, panViewY = 0;
+let isPainting = false, isErasing = false;
+let lastMiddleClick = 0;
+let isEyedropping = false;
+let PAINT_COLOR = '#7eb8a4';
+
+// ── Settings ──
+const GRID_LINE_PRESETS = [
+  { thin: '#080808', thick: '#111111' }, // σχεδόν μαύρο
+  { thin: '#141414', thick: '#1e1e1e' },
+  { thin: '#2a2a2a', thick: '#383838' }, // default (index 2) — δεν αλλάζει
+  { thin: '#4a4a4a', thick: '#5a5a5a' },
+  { thin: '#707070', thick: '#888888' }, // αρκετά ανοιχτό
+  { thin: '#9a9a9a', thick: '#b0b0b0' }, // πολύ ανοιχτό
+  { thin: '#c0c0c0', thick: '#d4d4d4' }, // σχεδόν λευκό
+];
+const GRID_BG_PRESETS = ['#000000', '#050505', '#0f0f0f', '#1a1a1a', '#272727', '#383838', '#f0f0f0'];
+let settings = { gridLines: 2, gridBg: 2 };
+
+// ── UI Visibility ──
+let ui = { leftPanel: true, rightPanel: true, rulers: true, grid: true };
+
+
+let shiftDown = false;
+let lineAnchor = null;      // {col, row} — anchor for shift+click line
+let axisLock = null;        // 'x' | 'y' | null — for shift+drag
+let axisDragStart = null;   // {col, row} — cell where drag started
+
+// ── Layers ──
+let layers = [];
+let activeLayerId = null;
+let layerCounter = 0;
+let soloLayerId = null;
+function activeLayer() { return layers.find(l => l.id === activeLayerId) || null; }
+
+// ── Scenes ──
+let scenes = [];
+let activeSceneId = null;
+let sceneCounter = 0;
+let soloSceneId = null;
+// scene: { id, name, img, x, y, angleDeg, visible }
+// x,y = position in world-cm from origin
+function activeScene() { return scenes.find(s => s.id === activeSceneId) || null; }
+
+// scene transform mode
+let isTransforming = false;
+let transformMode = null; // 'move' | 'rotate' | 'scale-tl' | 'scale-tr' | 'scale-bl' | 'scale-br'
+let transformStartX = 0, transformStartY = 0;
+let transformStartSceneX = 0, transformStartSceneY = 0;
+let transformStartAngle = 0;
+let transformStartScale = 1;
+let scaleAnchorX = 0, scaleAnchorY = 0; // world coords of opposite corner
+let transformGhostState = null; // {x,y,scale,angleDeg} snapshot for ghost preview
+
+// ── Set Scale ──
+let isSettingScale = false;
+let scalePoint1 = null; // {wx, wy} world coords (cm)
+let scalePoint2 = null;
+let scaleTargetScene = null;
+let scaleMouse = null; // current mouse world coords for preview line
+
+function startSetScale(scene) {
+  isSettingScale = true;
+  scalePoint1 = null; scalePoint2 = null;
+  scaleTargetScene = scene; scaleMouse = null;
+  const hint = document.getElementById('scale-hint');
+  hint.textContent = 'Click point 1 on the image';
+  hint.style.display = 'block';
+  wrap.style.cursor = 'crosshair';
+}
+
+function cancelSetScale() {
+  isSettingScale = false;
+  scalePoint1 = null; scalePoint2 = null; scaleTargetScene = null; scaleMouse = null;
+  document.getElementById('scale-hint').style.display = 'none';
+  wrap.style.cursor = activeSceneId ? 'default' : 'crosshair';
+  requestDraw();
+}
+
+function applySetScale(realMeters) {
+  const scene = scaleTargetScene;
+  if (!scene || !scalePoint1 || !scalePoint2) return;
+  const realCm = realMeters * 100;
+  const measuredCm = Math.hypot(scalePoint2.wx - scalePoint1.wx, scalePoint2.wy - scalePoint1.wy);
+  if (measuredCm < 0.01) return;
+  scene.scale = scene.scale * (realCm / measuredCm);
+  cancelSetScale();
+}
+
+document.getElementById('scale-dist-cancel').addEventListener('click', () => {
+  document.getElementById('scale-distance-modal').classList.add('hidden');
+  cancelSetScale();
+});
+document.getElementById('scale-dist-confirm').addEventListener('click', () => {
+  const val = parseFloat(document.getElementById('scale-dist-input').value);
+  if (!val || val <= 0) return;
+  document.getElementById('scale-distance-modal').classList.add('hidden');
+  applySetScale(val);
+});
+document.getElementById('scale-dist-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('scale-dist-confirm').click();
+  if (e.key === 'Escape') { document.getElementById('scale-distance-modal').classList.add('hidden'); cancelSetScale(); }
+});
+
+// ── History (drawing only) ──
+const HISTORY_MAX = 50;
+let undoStack = [];  // each entry: [{id, cells: Map}] snapshot of all layers
+let redoStack = [];
+
+function snapshotCells() {
+  const layer = activeLayer(); if (!layer) return null;
+  return { id: layer.id, cells: new Map(layer.cells) };
+}
+
+function pushHistory() {
+  const snap = snapshotCells(); if (!snap) return;
+  undoStack.push(snap);
+  if (undoStack.length > HISTORY_MAX) undoStack.shift();
+  redoStack = [];
+  updateUndoRedoUI();
+}
+
+function updateUndoRedoUI() {
+  document.getElementById('undo-btn').disabled = undoStack.length === 0;
+  document.getElementById('redo-btn').disabled = redoStack.length === 0;
+}
+
+// ── Panel collapse ──
+document.querySelector('#section-brush-size h3').addEventListener('click', () => {
+  document.getElementById('section-brush-size').classList.toggle('collapsed');
+});
+document.querySelector('#section-brush-color h3').addEventListener('click', () => {
+  document.getElementById('section-brush-color').classList.toggle('collapsed');
+});
+document.querySelector('.scenes-section .layers-header').addEventListener('click', e => {
+  if (e.target.closest('.add-layer-btn')) return;
+  document.querySelector('.scenes-section').classList.toggle('collapsed');
+});
+document.querySelector('.layers-section .layers-header').addEventListener('click', e => {
+  if (e.target.closest('.add-layer-btn')) return;
+  document.querySelector('.layers-section').classList.toggle('collapsed');
+});
+
+function undoAction() {
+  if (undoStack.length === 0) return;
+  const current = snapshotCells(); if (!current) return;
+  redoStack.push(current);
+  const snap = undoStack.pop();
+  const l = layers.find(l => l.id === snap.id);
+  if (l) { l.cells = new Map(snap.cells); l.dirty = true; }
+  lineAnchor = null;
+  updateUndoRedoUI();
+  requestDraw();
+}
+
+function redoAction() {
+  if (redoStack.length === 0) return;
+  const current = snapshotCells(); if (!current) return;
+  undoStack.push(current);
+  const snap = redoStack.pop();
+  const l = layers.find(l => l.id === snap.id);
+  if (l) { l.cells = new Map(snap.cells); l.dirty = true; }
+  lineAnchor = null;
+  updateUndoRedoUI();
+  requestDraw();
+}
+
+function addLayer() {
+  layerCounter++;
+  const id = 'L' + layerCounter;
+  layers.push({ id, name: 'Layer ' + layerCounter, visible: true, opacity: 1, cells: new Map(), dirty: true, cache: null });
+  activeLayerId = id;
+  activeSceneId = null;
+  undoStack = []; redoStack = [];
+  lineAnchor = null;
+  updateUndoRedoUI();
+  renderScenes();
+  renderLayers();
+  wrap.style.cursor = 'crosshair';
+  requestDraw();
+}
+
+// ── Scenes ──
+document.getElementById('add-scene-btn').addEventListener('click', () => {
+  document.getElementById('scene-file-input').click();
+});
+document.getElementById('scene-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => {
+    sceneCounter++;
+    const id = 'S' + sceneCounter;
+    // place scene at canvas center in world coords
+    const cx = (viewX + wrap.clientWidth/2) / zoom;
+    const cy = (viewY + wrap.clientHeight/2) / zoom;
+    scenes.push({ id, name: 'Scene ' + sceneCounter, img, x: cx, y: cy, angleDeg: 0, visible: true, opacity: 1, scale: 1 });
+    activeSceneId = id;
+    activeLayerId = null;
+    lineAnchor = null;
+    undoStack = []; redoStack = [];
+    updateUndoRedoUI();
+    renderScenes();
+    renderLayers();
+    requestDraw();
+  };
+  img.src = URL.createObjectURL(file);
+  e.target.value = '';
+});
+
+let pendingDeleteSceneId = null;
+const deleteSceneModal = document.getElementById('delete-scene-modal');
+document.getElementById('modal-scene-cancel').addEventListener('click', () => {
+  deleteSceneModal.classList.add('hidden'); pendingDeleteSceneId = null;
+});
+document.getElementById('modal-scene-confirm').addEventListener('click', () => {
+  if (!pendingDeleteSceneId) return;
+  scenes = scenes.filter(s => s.id !== pendingDeleteSceneId);
+  if (activeSceneId === pendingDeleteSceneId) activeSceneId = null;
+  pendingDeleteSceneId = null;
+  deleteSceneModal.classList.add('hidden');
+  renderScenes(); requestDraw();
+});
+
+function reorderScene(fromId, toId, position) {
+  const fromIdx = scenes.findIndex(s => s.id === fromId);
+  const toIdx   = scenes.findIndex(s => s.id === toId);
+  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+  const [moved] = scenes.splice(fromIdx, 1);
+  const insertAt = scenes.findIndex(s => s.id === toId);
+  scenes.splice(position === 'top' ? insertAt + 1 : insertAt, 0, moved);
+  renderScenes(); requestDraw();
+}
+
+let sceneDragId = null;
+
+function renderScenes() {
+  const list = document.getElementById('scenes-list');
+  list.innerHTML = '';
+
+  [...scenes].reverse().forEach(scene => {
+    const isActive = scene.id === activeSceneId;
+    const entry = document.createElement('div');
+    entry.className = 'scene-entry' + (isActive ? ' active' : '');
+    entry.dataset.id = scene.id;
+
+    const item = document.createElement('div');
+    item.className = 'scene-item';
+
+    // drag handle
+    const handle = document.createElement('div');
+    handle.className = 'layer-handle';
+    handle.textContent = '⠿';
+    handle.addEventListener('mousedown', ev => {
+      ev.preventDefault();
+      sceneDragId = scene.id;
+      const startY = ev.clientY;
+      let didDrag = false;
+      entry.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+      const dragOverlay = document.getElementById('drag-overlay');
+
+      const onMove = mv => {
+        if (Math.abs(mv.clientY - startY) > 4) { didDrag = true; dragOverlay.style.display = 'block'; }
+        if (!didDrag) return;
+        document.querySelectorAll('.scene-entry').forEach(el => el.classList.remove('drag-over-top','drag-over-bottom'));
+        dragOverlay.style.display = 'none';
+        const target = document.elementFromPoint(mv.clientX, mv.clientY)?.closest('.scene-entry');
+        dragOverlay.style.display = 'block';
+        if (target && target.dataset.id && target.dataset.id !== sceneDragId) {
+          const rect = target.getBoundingClientRect();
+          target.classList.add(mv.clientY < rect.top + rect.height/2 ? 'drag-over-top' : 'drag-over-bottom');
+        }
+      };
+      const onUp = mv => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        entry.classList.remove('dragging');
+        document.body.style.userSelect = '';
+        dragOverlay.style.display = 'none';
+        document.querySelectorAll('.scene-entry').forEach(el => {
+          const pos = el.classList.contains('drag-over-top') ? 'top' : el.classList.contains('drag-over-bottom') ? 'bottom' : null;
+          el.classList.remove('drag-over-top','drag-over-bottom');
+          if (pos && el.dataset.id && el.dataset.id !== sceneDragId) reorderScene(sceneDragId, el.dataset.id, pos);
+        });
+        sceneDragId = null;
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    // visibility
+    const vis = document.createElement('div');
+    const isSoloedOut = soloSceneId && soloSceneId !== scene.id;
+    vis.className = 'layer-vis' + (scene.visible && !isSoloedOut ? ' on' : '') + (isSoloedOut ? ' soloed-out' : '');
+    vis.textContent = scene.visible ? '●' : '○';
+    vis.addEventListener('click', ev => {
+      ev.stopPropagation();
+      scene.visible = !scene.visible;
+      renderScenes(); requestDraw();
+    });
+
+    const solo = document.createElement('div');
+    solo.className = 'scene-solo' + (soloSceneId === scene.id ? ' on' : '');
+    solo.textContent = '◉';
+    solo.title = 'Solo';
+    solo.addEventListener('click', ev => {
+      ev.stopPropagation();
+      soloSceneId = soloSceneId === scene.id ? null : scene.id;
+      renderScenes(); renderLayers(); requestDraw();
+    });
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'layer-name-display';
+    nameEl.textContent = scene.name;
+
+    item.addEventListener('click', ev => {
+      if (ev.target === handle) return;
+      if (scene.id !== activeSceneId) {
+        activeSceneId = scene.id;
+        activeLayerId = null;
+        activeMeasurementId = null;
+        lineAnchor = null;
+        undoStack = []; redoStack = [];
+        updateUndoRedoUI();
+        renderLayers();
+        renderScenes();
+        renderMeasurements();
+        requestDraw();
+      }
+    });
+
+    item.appendChild(handle);
+    item.appendChild(vis);
+    item.appendChild(solo);
+    item.appendChild(nameEl);
+    entry.appendChild(item);
+
+    if (isActive) {
+      const sub = document.createElement('div');
+      sub.className = 'scene-sub';
+      const actions = document.createElement('div');
+      actions.className = 'sub-actions';
+
+      const renameBtn = document.createElement('div');
+      renameBtn.className = 'sub-btn rename-scene';
+      renameBtn.textContent = 'Rename';
+      renameBtn.addEventListener('click', () => {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'scene-name-input';
+        inp.value = scene.name;
+        nameEl.replaceWith(inp);
+        inp.focus(); inp.select();
+        const save = () => { scene.name = inp.value.trim() || scene.name; renderScenes(); };
+        inp.addEventListener('blur', save);
+        inp.addEventListener('keydown', e => { if (e.key==='Enter') inp.blur(); if (e.key==='Escape') { inp.value=scene.name; inp.blur(); } });
+      });
+
+      const delBtn = document.createElement('div');
+      delBtn.className = 'sub-btn delete';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', () => {
+        pendingDeleteSceneId = scene.id;
+        document.getElementById('modal-scene-name').textContent = '"' + scene.name + '"';
+        deleteSceneModal.classList.remove('hidden');
+      });
+
+      const opacityRow = document.createElement('div');
+      opacityRow.className = 'scene-opacity-row';
+      const opLabel = document.createElement('span');
+      opLabel.className = 'scene-opacity-label';
+      opLabel.textContent = 'Opacity';
+      const opSlider = document.createElement('input');
+      opSlider.type = 'range'; opSlider.min = 0; opSlider.max = 1; opSlider.step = 0.05;
+      opSlider.value = scene.opacity;
+      opSlider.className = 'scene-opacity-slider';
+      opSlider.addEventListener('input', () => {
+        scene.opacity = +opSlider.value;
+        requestDraw();
+      });
+      opacityRow.appendChild(opLabel);
+      opacityRow.appendChild(opSlider);
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(delBtn);
+
+      // Set Scale button
+      const setScaleBtn = document.createElement('div');
+      setScaleBtn.className = 'sub-btn set-scale-btn';
+      setScaleBtn.textContent = 'Set Scale';
+      setScaleBtn.addEventListener('click', () => {
+        startSetScale(scene);
+      });
+
+      sub.appendChild(setScaleBtn);
+      sub.appendChild(opacityRow);
+      sub.appendChild(actions);
+      entry.appendChild(sub);
+    }
+
+    list.appendChild(entry);
+  });
+}
+
+// ── Modal ──
+let pendingDeleteId = null;
+const deleteModal = document.getElementById('delete-modal');
+
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  deleteModal.classList.add('hidden'); pendingDeleteId = null;
+});
+document.getElementById('modal-confirm').addEventListener('click', () => {
+  if (!pendingDeleteId) return;
+  layers = layers.filter(l => l.id !== pendingDeleteId);
+  if (activeLayerId === pendingDeleteId)
+    activeLayerId = layers.length ? layers[layers.length - 1].id : null;
+  pendingDeleteId = null;
+  deleteModal.classList.add('hidden');
+  renderLayers(); requestDraw();
+});
+document.addEventListener('keydown', e => {
+  if (deleteModal.classList.contains('hidden')) return;
+  if (e.key === 'Enter')  { e.preventDefault(); document.getElementById('modal-confirm').click(); }
+  if (e.key === 'Escape') { e.preventDefault(); document.getElementById('modal-cancel').click(); }
+});
+
+// ── Delete Calc Modal ──
+let pendingDeleteCalcId = null;
+document.getElementById('modal-calc-cancel').addEventListener('click', () => {
+  document.getElementById('delete-calc-modal').classList.add('hidden');
+  pendingDeleteCalcId = null;
+});
+document.getElementById('modal-calc-confirm').addEventListener('click', () => {
+  if (!pendingDeleteCalcId) return;
+  calcs = calcs.filter(c => c.id !== pendingDeleteCalcId);
+  if (activeCalcId === pendingDeleteCalcId) activeCalcId = null;
+  pendingDeleteCalcId = null;
+  document.getElementById('delete-calc-modal').classList.add('hidden');
+  renderCalcs();
+});
+document.addEventListener('keydown', e => {
+  if (document.getElementById('delete-calc-modal').classList.contains('hidden')) return;
+  if (e.key === 'Enter')  { e.preventDefault(); document.getElementById('modal-calc-confirm').click(); }
+  if (e.key === 'Escape') { e.preventDefault(); document.getElementById('modal-calc-cancel').click(); }
+});
+
+// ── Drag to reorder ──
+let dragId = null;
+
+function reorderLayer(fromId, toId, position) {
+  const fromIdx = layers.findIndex(l => l.id === fromId);
+  const toIdx   = layers.findIndex(l => l.id === toId);
+  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+  const [moved] = layers.splice(fromIdx, 1);
+  const insertAt = layers.findIndex(l => l.id === toId);
+  layers.splice(position === 'top' ? insertAt + 1 : insertAt, 0, moved);
+  renderLayers(); requestDraw();
+}
+
+// ── Render Layers ──
+function buildLayerPropsPanel(layer) {
+  const CELL_AREA = (CELL_CM / 100) * (CELL_CM / 100); // m²
+
+  // Gather colors
+  const colorMap = new Map(); // hex → count
+  for (const [, c] of layer.cells) {
+    colorMap.set(c.toLowerCase(), (colorMap.get(c.toLowerCase()) || 0) + 1);
+  }
+  const totalCells = layer.cells.size;
+  const totalArea  = totalCells * CELL_AREA;
+
+  const outerWrap = document.createElement('div');
+  outerWrap.className = 'layer-props';
+
+  // ── Top toggle: Properties ──
+  const toggle = document.createElement('div');
+  toggle.className = 'layer-props-toggle';
+  const topArrow = document.createElement('span');
+  topArrow.className = 'layer-props-arrow';
+  topArrow.textContent = '▸';
+  const topLabel = document.createElement('span');
+  topLabel.className = 'layer-props-label';
+  topLabel.textContent = 'Properties';
+  toggle.appendChild(topArrow);
+  toggle.appendChild(topLabel);
+
+  const body = document.createElement('div');
+  body.className = 'layer-props-body';
+
+  toggle.addEventListener('click', () => {
+    const open = body.classList.toggle('open');
+    topArrow.classList.toggle('open', open);
+  });
+
+  // Helper: build a prop row (Area or Cell Count) with nested color breakdown
+  function makePropRow(label, totalVal, colorValFn) {
+    const rowWrap = document.createElement('div');
+    rowWrap.style.cssText = 'overflow:visible;';
+
+    const row = document.createElement('div');
+    row.className = 'layer-prop-row';
+    const arr = document.createElement('span');
+    arr.className = 'layer-prop-arrow';
+    arr.textContent = '▸';
+    const name = document.createElement('span');
+    name.className = 'layer-prop-name';
+    name.textContent = label;
+    const val = document.createElement('span');
+    val.className = 'layer-prop-val';
+    val.textContent = totalVal;
+
+    row.appendChild(arr);
+    row.appendChild(name);
+    row.appendChild(val);
+
+    const colorList = document.createElement('div');
+    colorList.className = 'layer-prop-colors';
+
+    // populate colors
+    [...colorMap.entries()].sort((a,b) => b[1]-a[1]).forEach(([hex, count]) => {
+      const cr = document.createElement('div');
+      cr.className = 'layer-color-row';
+      const dot = document.createElement('div');
+      dot.className = 'layer-color-dot';
+      dot.style.background = hex;
+      const cname = document.createElement('span');
+      cname.className = 'layer-color-name';
+      cname.textContent = hex;
+      const cval = document.createElement('span');
+      cval.className = 'layer-color-val';
+      cval.textContent = colorValFn(count);
+      cr.appendChild(dot); cr.appendChild(cname); cr.appendChild(cval);
+      colorList.appendChild(cr);
+    });
+
+    row.addEventListener('click', () => {
+      const open = colorList.classList.toggle('open');
+      arr.classList.toggle('open', open);
+    });
+
+    rowWrap.appendChild(row);
+    rowWrap.appendChild(colorList);
+    return rowWrap;
+  }
+
+  const areaRowWrap = makePropRow('Area', totalArea.toFixed(2), count => (count * CELL_AREA).toFixed(2));
+  areaRowWrap.querySelector('.layer-prop-val').dataset.prop = 'area';
+  areaRowWrap.querySelector('.layer-prop-colors').dataset.propColors = 'area';
+  body.appendChild(areaRowWrap);
+
+  const countRowWrap = makePropRow('Cell Count', totalCells.toString(), count => count.toString());
+  countRowWrap.querySelector('.layer-prop-val').dataset.prop = 'cellcount';
+  countRowWrap.querySelector('.layer-prop-colors').dataset.propColors = 'cellcount';
+  body.appendChild(countRowWrap);
+
+  outerWrap.appendChild(toggle);
+  outerWrap.appendChild(body);
+  return outerWrap;
+}
+
+function renderLayers() {
+  const list = document.getElementById('layers-list');
+  list.innerHTML = '';
+
+  // layers array: index 0 = bottom, last = top → show top-first in UI
+  [...layers].reverse().forEach(layer => {
+    const isActive = layer.id === activeLayerId;
+    const entry = document.createElement('div');
+    entry.className = 'layer-entry' + (isActive ? ' active' : '');
+    entry.dataset.id = layer.id;
+
+    // ── header row ──
+    const item = document.createElement('div');
+    item.className = 'layer-item';
+
+    // drag handle
+    const handle = document.createElement('div');
+    handle.className = 'layer-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Drag to reorder';
+
+    let dragStartY = 0;
+    let didDrag = false;
+
+    handle.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      dragId = layer.id;
+      didDrag = false;
+      dragStartY = e.clientY;
+      entry.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+
+      const dragOverlay = document.getElementById('drag-overlay');
+
+      const onMove = ev => {
+        if (Math.abs(ev.clientY - dragStartY) > 4) {
+          didDrag = true;
+          dragOverlay.style.display = 'block';
+        }
+        if (!didDrag) return;
+        document.querySelectorAll('.layer-entry').forEach(el => {
+          el.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+        // briefly hide overlay so elementFromPoint can see layers beneath
+        dragOverlay.style.display = 'none';
+        const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.layer-entry');
+        dragOverlay.style.display = 'block';
+        if (target && target !== entry && target.dataset.id) {
+          const rect = target.getBoundingClientRect();
+          const mid  = rect.top + rect.height / 2;
+          target.classList.add(ev.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
+        }
+      };
+
+      const onUp = ev => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        entry.classList.remove('dragging');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        dragOverlay.style.display = 'none';
+
+        document.querySelectorAll('.layer-entry').forEach(el => {
+          const pos = el.classList.contains('drag-over-top') ? 'top'
+                    : el.classList.contains('drag-over-bottom') ? 'bottom' : null;
+          el.classList.remove('drag-over-top', 'drag-over-bottom');
+          if (pos && el.dataset.id && el.dataset.id !== dragId) {
+            reorderLayer(dragId, el.dataset.id, pos);
+          }
+        });
+        dragId = null;
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    // visibility dot
+    const vis = document.createElement('div');
+    const isSoloedOut = soloLayerId && soloLayerId !== layer.id;
+    vis.className = 'layer-vis' + (layer.visible && !isSoloedOut ? ' on' : '') + (isSoloedOut ? ' soloed-out' : '');
+    vis.textContent = layer.visible ? '●' : '○';
+    vis.addEventListener('click', e => {
+      e.stopPropagation();
+      layer.visible = !layer.visible;
+      renderLayers(); requestDraw();
+    });
+
+    const solo = document.createElement('div');
+    solo.className = 'layer-solo' + (soloLayerId === layer.id ? ' on' : '');
+    solo.textContent = '◉';
+    solo.title = 'Solo';
+    solo.addEventListener('click', e => {
+      e.stopPropagation();
+      soloLayerId = soloLayerId === layer.id ? null : layer.id;
+      renderLayers(); renderScenes(); requestDraw();
+    });
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'layer-name-display';
+    nameEl.textContent = layer.name;
+
+    // click on item (not handle) → select
+    item.addEventListener('click', e => {
+      if (e.target === handle) return;
+      if (layer.id !== activeLayerId) {
+        undoStack = []; redoStack = [];
+        lineAnchor = null;
+        updateUndoRedoUI();
+      }
+      activeLayerId = layer.id;
+      activeSceneId = null;
+      activeMeasurementId = null;
+      wrap.style.cursor = 'crosshair';
+      renderScenes();
+      renderLayers();
+      renderMeasurements();
+      requestDraw();
+    });
+
+    item.appendChild(handle);
+    item.appendChild(vis);
+    item.appendChild(solo);
+    item.appendChild(nameEl);
+    entry.appendChild(item);
+
+    // ── sub-panel ──
+    if (isActive) {
+      const sub = document.createElement('div');
+      sub.className = 'layer-sub';
+
+      // ── Properties panel (first) ──
+      sub.appendChild(buildLayerPropsPanel(layer));
+
+      // opacity row
+      const opacityRow = document.createElement('div');
+      opacityRow.className = 'layer-opacity-row';
+      const opLabel = document.createElement('span');
+      opLabel.className = 'layer-opacity-label';
+      opLabel.textContent = 'Opacity';
+      const opSlider = document.createElement('input');
+      opSlider.type = 'range'; opSlider.min = 0; opSlider.max = 1; opSlider.step = 0.05;
+      opSlider.value = layer.opacity;
+      opSlider.className = 'layer-opacity-slider';
+      const opVal = document.createElement('span');
+      opVal.className = 'layer-opacity-val';
+      opVal.textContent = Math.round(layer.opacity * 100) + '%';
+      opSlider.addEventListener('input', () => {
+        layer.opacity = +opSlider.value;
+        opVal.textContent = Math.round(layer.opacity * 100) + '%';
+        requestDraw();
+      });
+      opacityRow.appendChild(opLabel);
+      opacityRow.appendChild(opSlider);
+      sub.appendChild(opacityRow);
+
+      const actions = document.createElement('div');
+      actions.className = 'sub-actions';
+
+      const renameBtn = document.createElement('div');
+      renameBtn.className = 'sub-btn rename';
+      renameBtn.textContent = 'Rename';
+      renameBtn.addEventListener('click', () => {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'layer-name-input';
+        inp.value = layer.name;
+        item.replaceChild(inp, nameEl);
+        inp.focus(); inp.select();
+        const finish = () => { layer.name = inp.value.trim() || layer.name; renderLayers(); };
+        inp.addEventListener('blur', finish);
+        inp.addEventListener('keydown', e => {
+          e.stopPropagation();
+          if (e.key === 'Enter') inp.blur();
+          if (e.key === 'Escape') { inp.value = layer.name; inp.blur(); }
+        });
+      });
+
+      const delBtn = document.createElement('div');
+      delBtn.className = 'sub-btn delete';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', () => {
+        pendingDeleteId = layer.id;
+        document.getElementById('modal-layer-name').textContent = '"' + layer.name + '"';
+        deleteModal.classList.remove('hidden');
+      });
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(delBtn);
+      sub.appendChild(actions);
+
+      entry.appendChild(sub);
+    }
+
+    list.appendChild(entry);
+  });
+}
+
+document.getElementById('add-layer-btn').addEventListener('click', addLayer);
+
+// ── Measurements ──
+let measurements = [];
+let activeMeasurementId = null;
+let measurementCounter = 0;
+let soloMeasurementId = null;
+let measDragId = null;
+
+function activeMeasurement() { return measurements.find(m => m.id === activeMeasurementId) || null; }
+
+// Drawing state
+let isMeasDrawing = false;
+let measDragMode = false; // true = drag mode (commit on mouseup), false = click mode (commit on second click)
+let measDrawStart = null; // {col, row} — center cell of brush at mousedown
+let measDrawCurrent = null; // {col, row} — current center cell
+let isMeasErasing = false;
+
+function measCommitSegment() {
+  const meas = activeMeasurement();
+  if (meas && measDrawStart && measDrawCurrent) {
+    const dx = measDrawCurrent.col - measDrawStart.col;
+    const dy = measDrawCurrent.row - measDrawStart.row;
+    if (Math.hypot(dx, dy) > 0.5) {
+      pushHistory();
+      meas.segments.push({
+        x1: measDrawStart.col, y1: measDrawStart.row,
+        x2: measDrawCurrent.col, y2: measDrawCurrent.row,
+        color: PAINT_COLOR,
+        brushX, brushY
+      });
+      renderMeasurements();
+    }
+  }
+  isMeasDrawing = false; measDragMode = false;
+  measDrawStart = null; measDrawCurrent = null;
+}
+
+function measCellCenter(col, row) {
+  // Returns the center col/row of the brush snapped to the cell under cursor
+  return { col, row };
+}
+
+function segmentLength(seg) {
+  // Euclidean distance in meters between two cell centers
+  const dcol = seg.x2 - seg.x1;
+  const drow = seg.y2 - seg.y1;
+  return Math.hypot(dcol, drow) * (CELL_CM / 100);
+}
+
+function buildMeasPropsPanel(meas) {
+  const colorMap = new Map(); // hex → total length in m
+  for (const seg of meas.segments) {
+    const hex = seg.color.toLowerCase();
+    colorMap.set(hex, (colorMap.get(hex) || 0) + segmentLength(seg));
+  }
+  const totalLen = [...colorMap.values()].reduce((a, b) => a + b, 0);
+
+  const outerWrap = document.createElement('div');
+  outerWrap.className = 'meas-props';
+
+  const toggle = document.createElement('div');
+  toggle.className = 'meas-props-toggle';
+  const topArrow = document.createElement('span');
+  topArrow.className = 'meas-props-arrow';
+  topArrow.textContent = '▸';
+  const topLabel = document.createElement('span');
+  topLabel.className = 'meas-props-label';
+  topLabel.textContent = 'Properties';
+  toggle.appendChild(topArrow);
+  toggle.appendChild(topLabel);
+
+  const body = document.createElement('div');
+  body.className = 'meas-props-body';
+
+  toggle.addEventListener('click', () => {
+    const open = body.classList.toggle('open');
+    topArrow.classList.toggle('open', open);
+  });
+
+  // Total length row
+  const rowWrap = document.createElement('div');
+  rowWrap.style.cssText = 'overflow:visible;';
+  const row = document.createElement('div');
+  row.className = 'meas-prop-row';
+  const arr = document.createElement('span');
+  arr.className = 'meas-prop-arrow';
+  arr.textContent = '▸';
+  const name = document.createElement('span');
+  name.className = 'meas-prop-name';
+  name.textContent = 'Length';
+  const val = document.createElement('span');
+  val.className = 'meas-prop-val';
+  val.dataset.measProp = 'length';
+  val.textContent = totalLen.toFixed(2) + ' m';
+  row.appendChild(arr); row.appendChild(name); row.appendChild(val);
+
+  const colorList = document.createElement('div');
+  colorList.className = 'meas-prop-colors';
+  colorList.dataset.measPropColors = 'length';
+
+  [...colorMap.entries()].sort((a,b) => b[1]-a[1]).forEach(([hex, len]) => {
+    const cr = document.createElement('div');
+    cr.className = 'meas-color-row';
+    const dot = document.createElement('div');
+    dot.className = 'meas-color-dot';
+    dot.style.background = hex;
+    const cname = document.createElement('span');
+    cname.className = 'meas-color-name';
+    cname.textContent = hex;
+    const cval = document.createElement('span');
+    cval.className = 'meas-color-val';
+    cval.textContent = len.toFixed(2) + ' m';
+    cr.appendChild(dot); cr.appendChild(cname); cr.appendChild(cval);
+    colorList.appendChild(cr);
+  });
+
+  row.addEventListener('click', () => {
+    const open = colorList.classList.toggle('open');
+    arr.classList.toggle('open', open);
+  });
+
+  rowWrap.appendChild(row);
+  rowWrap.appendChild(colorList);
+  body.appendChild(rowWrap);
+  outerWrap.appendChild(toggle);
+  outerWrap.appendChild(body);
+  return outerWrap;
+}
+
+function updateMeasProps() {
+  if (!activeMeasurementId) return;
+  const meas = activeMeasurement();
+  if (!meas) return;
+
+  const colorMap = new Map();
+  for (const seg of meas.segments) {
+    const hex = seg.color.toLowerCase();
+    colorMap.set(hex, (colorMap.get(hex) || 0) + segmentLength(seg));
+  }
+  const totalLen = [...colorMap.values()].reduce((a, b) => a + b, 0);
+
+  const valEl = document.querySelector('.meas-prop-val[data-meas-prop="length"]');
+  if (valEl) valEl.textContent = totalLen.toFixed(2) + ' m';
+
+  const colorListEl = document.querySelector('.meas-prop-colors[data-meas-prop-colors="length"]');
+  if (colorListEl) {
+    const wasOpen = colorListEl.classList.contains('open');
+    colorListEl.innerHTML = '';
+    [...colorMap.entries()].sort((a,b) => b[1]-a[1]).forEach(([hex, len]) => {
+      const cr = document.createElement('div');
+      cr.className = 'meas-color-row';
+      const dot = document.createElement('div');
+      dot.className = 'meas-color-dot';
+      dot.style.background = hex;
+      const cname = document.createElement('span');
+      cname.className = 'meas-color-name';
+      cname.textContent = hex;
+      const cval = document.createElement('span');
+      cval.className = 'meas-color-val';
+      cval.textContent = len.toFixed(2) + ' m';
+      cr.appendChild(dot); cr.appendChild(cname); cr.appendChild(cval);
+      colorListEl.appendChild(cr);
+    });
+    if (wasOpen) colorListEl.classList.add('open');
+  }
+}
+
+function renderMeasurements() {
+  const list = document.getElementById('measurements-list');
+  list.innerHTML = '';
+
+  [...measurements].reverse().forEach(meas => {
+    const isActive = meas.id === activeMeasurementId;
+    const entry = document.createElement('div');
+    entry.className = 'meas-entry' + (isActive ? ' active' : '');
+    entry.dataset.id = meas.id;
+
+    const item = document.createElement('div');
+    item.className = 'meas-item';
+
+    // drag handle
+    const handle = document.createElement('div');
+    handle.className = 'layer-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Drag to reorder';
+
+    let dragStartY = 0, didDrag = false;
+    handle.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      measDragId = meas.id;
+      didDrag = false;
+      dragStartY = e.clientY;
+      entry.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+      const dragOverlay = document.getElementById('drag-overlay');
+
+      const onMove = ev => {
+        if (Math.abs(ev.clientY - dragStartY) > 4) { didDrag = true; dragOverlay.style.display = 'block'; }
+        if (!didDrag) return;
+        document.querySelectorAll('.meas-entry').forEach(el => el.classList.remove('drag-over-top','drag-over-bottom'));
+        dragOverlay.style.display = 'none';
+        const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.meas-entry');
+        dragOverlay.style.display = 'block';
+        if (target && target !== entry && target.dataset.id) {
+          const rect = target.getBoundingClientRect();
+          target.classList.add(ev.clientY < rect.top + rect.height/2 ? 'drag-over-top' : 'drag-over-bottom');
+        }
+      };
+      const onUp = ev => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        entry.classList.remove('dragging');
+        document.body.style.userSelect = '';
+        dragOverlay.style.display = 'none';
+        document.querySelectorAll('.meas-entry').forEach(el => {
+          const pos = el.classList.contains('drag-over-top') ? 'top' : el.classList.contains('drag-over-bottom') ? 'bottom' : null;
+          el.classList.remove('drag-over-top','drag-over-bottom');
+          if (pos && el.dataset.id && el.dataset.id !== measDragId) reorderMeasurement(measDragId, el.dataset.id, pos);
+        });
+        measDragId = null;
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    // visibility
+    const isSoloedOut = soloMeasurementId && soloMeasurementId !== meas.id;
+    const vis = document.createElement('div');
+    vis.className = 'meas-vis' + (meas.visible && !isSoloedOut ? ' on' : '') + (isSoloedOut ? ' soloed-out' : '');
+    vis.textContent = meas.visible ? '●' : '○';
+    vis.addEventListener('click', e => {
+      e.stopPropagation();
+      meas.visible = !meas.visible;
+      renderMeasurements(); requestDraw();
+    });
+
+    // solo
+    const solo = document.createElement('div');
+    solo.className = 'meas-solo' + (soloMeasurementId === meas.id ? ' on' : '');
+    solo.textContent = '◉';
+    solo.title = 'Solo';
+    solo.addEventListener('click', e => {
+      e.stopPropagation();
+      soloMeasurementId = soloMeasurementId === meas.id ? null : meas.id;
+      renderMeasurements(); requestDraw();
+    });
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'meas-name-display';
+    nameEl.textContent = meas.name;
+
+    item.addEventListener('click', e => {
+      if (e.target === handle) return;
+      activeMeasurementId = meas.id;
+      activeLayerId = null;
+      activeSceneId = null;
+      wrap.style.cursor = 'crosshair';
+      renderMeasurements();
+      renderLayers();
+      renderScenes();
+      requestDraw();
+    });
+
+    item.appendChild(handle);
+    item.appendChild(vis);
+    item.appendChild(solo);
+    item.appendChild(nameEl);
+    entry.appendChild(item);
+
+    if (isActive) {
+      const sub = document.createElement('div');
+      sub.className = 'meas-sub';
+
+      // Properties panel
+      sub.appendChild(buildMeasPropsPanel(meas));
+
+      // Width
+      const wRow = document.createElement('div');
+      wRow.className = 'meas-opacity-row';
+      const wLabel = document.createElement('span');
+      wLabel.className = 'meas-opacity-label';
+      wLabel.textContent = 'Width';
+      const wSlider = document.createElement('input');
+      wSlider.type = 'range'; wSlider.min = 1; wSlider.max = 20; wSlider.step = 1;
+      wSlider.value = meas.lineWidth ?? 3;
+      wSlider.className = 'meas-opacity-slider';
+      const wVal = document.createElement('span');
+      wVal.className = 'meas-opacity-val';
+      wVal.textContent = (meas.lineWidth ?? 3) + ' cells';
+      wSlider.addEventListener('input', () => {
+        meas.lineWidth = +wSlider.value;
+        wVal.textContent = meas.lineWidth + ' cells';
+        requestDraw();
+      });
+      wRow.appendChild(wLabel); wRow.appendChild(wSlider); wRow.appendChild(wVal);
+      sub.appendChild(wRow);
+
+      // Opacity
+      const opRow = document.createElement('div');
+      opRow.className = 'meas-opacity-row';
+      const opLabel = document.createElement('span');
+      opLabel.className = 'meas-opacity-label';
+      opLabel.textContent = 'Opacity';
+      const opSlider = document.createElement('input');
+      opSlider.type = 'range'; opSlider.min = 0; opSlider.max = 1; opSlider.step = 0.05;
+      opSlider.value = meas.opacity;
+      opSlider.className = 'meas-opacity-slider';
+      const opVal = document.createElement('span');
+      opVal.className = 'meas-opacity-val';
+      opVal.textContent = Math.round(meas.opacity * 100) + '%';
+      opSlider.addEventListener('input', () => {
+        meas.opacity = +opSlider.value;
+        opVal.textContent = Math.round(meas.opacity * 100) + '%';
+        requestDraw();
+      });
+      opRow.appendChild(opLabel); opRow.appendChild(opSlider); opRow.appendChild(opVal);
+      sub.appendChild(opRow);
+
+      // Actions
+      const actions = document.createElement('div');
+      actions.className = 'sub-actions';
+
+      const renameBtn = document.createElement('div');
+      renameBtn.className = 'sub-btn rename-meas';
+      renameBtn.textContent = 'Rename';
+      renameBtn.addEventListener('click', () => {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'meas-name-input';
+        inp.value = meas.name;
+        item.replaceChild(inp, nameEl);
+        inp.focus(); inp.select();
+        const finish = () => { meas.name = inp.value.trim() || meas.name; renderMeasurements(); };
+        inp.addEventListener('blur', finish);
+        inp.addEventListener('keydown', e => {
+          e.stopPropagation();
+          if (e.key === 'Enter') inp.blur();
+          if (e.key === 'Escape') { inp.value = meas.name; inp.blur(); }
+        });
+      });
+
+      const delBtn = document.createElement('div');
+      delBtn.className = 'sub-btn delete';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', () => {
+        pendingDeleteMeasId = meas.id;
+        document.getElementById('modal-meas-name').textContent = '"' + meas.name + '"';
+        document.getElementById('delete-meas-modal').classList.remove('hidden');
+      });
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(delBtn);
+      sub.appendChild(actions);
+      entry.appendChild(sub);
+    }
+
+    list.appendChild(entry);
+  });
+}
+
+function reorderMeasurement(fromId, toId, position) {
+  const fromIdx = measurements.findIndex(m => m.id === fromId);
+  const toIdx   = measurements.findIndex(m => m.id === toId);
+  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+  const [moved] = measurements.splice(fromIdx, 1);
+  const insertAt = measurements.findIndex(m => m.id === toId);
+  measurements.splice(position === 'top' ? insertAt + 1 : insertAt, 0, moved);
+  renderMeasurements(); requestDraw();
+}
+
+// Delete measurement modal
+let pendingDeleteMeasId = null;
+document.getElementById('modal-meas-cancel').addEventListener('click', () => {
+  document.getElementById('delete-meas-modal').classList.add('hidden');
+  pendingDeleteMeasId = null;
+});
+document.getElementById('modal-meas-confirm').addEventListener('click', () => {
+  if (!pendingDeleteMeasId) return;
+  measurements = measurements.filter(m => m.id !== pendingDeleteMeasId);
+  if (activeMeasurementId === pendingDeleteMeasId) activeMeasurementId = null;
+  pendingDeleteMeasId = null;
+  document.getElementById('delete-meas-modal').classList.add('hidden');
+  renderMeasurements(); requestDraw();
+});
+document.addEventListener('keydown', e => {
+  if (document.getElementById('delete-meas-modal').classList.contains('hidden')) return;
+  if (e.key === 'Enter')  { e.preventDefault(); document.getElementById('modal-meas-confirm').click(); }
+  if (e.key === 'Escape') { e.preventDefault(); document.getElementById('modal-meas-cancel').click(); }
+});
+
+// Add measurement
+document.getElementById('add-measurement-btn').addEventListener('click', () => {
+  measurementCounter++;
+  const id = 'M' + measurementCounter;
+  measurements.push({ id, name: 'Measurement ' + measurementCounter, visible: true, opacity: 1, lineWidth: 1, segments: [] });
+  activeMeasurementId = id;
+  activeLayerId = null;
+  activeSceneId = null;
+  wrap.style.cursor = 'crosshair';
+  renderMeasurements();
+  renderLayers();
+  renderScenes();
+  requestDraw();
+});
+
+// Collapse toggle
+document.querySelector('.measurements-section .measurements-header').addEventListener('click', e => {
+  if (e.target.closest('#add-measurement-btn')) return;
+  document.querySelector('.measurements-section').classList.toggle('collapsed');
+});
+function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+function cellsToCm(c) { return c * CELL_CM; }
+function cmToCells(cm) { return Math.round(cm / CELL_CM); }
+
+function updateBrushUI() {
+  document.getElementById('bx-val').value    = cellsToCm(brushX);
+  document.getElementById('by-val').value    = cellsToCm(brushY);
+  document.getElementById('bx-slider').value = brushX;
+  document.getElementById('by-slider').value = brushY;
+  lineAnchor = null;
+  requestDraw();
+}
+function setBrushX(c) { brushX = clamp(c, BRUSH_MIN, BRUSH_MAX); updateBrushUI(); }
+function setBrushY(c) { brushY = clamp(c, BRUSH_MIN, BRUSH_MAX); updateBrushUI(); }
+function parseCm(raw) { const n = parseFloat(raw); if (isNaN(n)||n<5) return 1; return clamp(cmToCells(Math.round(n/5)*5),1,100); }
+
+document.getElementById('bx-minus').addEventListener('click', () => setBrushX(brushX-1));
+document.getElementById('bx-plus') .addEventListener('click', () => setBrushX(brushX+1));
+document.getElementById('by-minus').addEventListener('click', () => setBrushY(brushY-1));
+document.getElementById('by-plus') .addEventListener('click', () => setBrushY(brushY+1));
+document.getElementById('bx-slider').addEventListener('input', e => setBrushX(+e.target.value));
+document.getElementById('by-slider').addEventListener('input', e => setBrushY(+e.target.value));
+document.getElementById('bx-val').addEventListener('change', e => setBrushX(parseCm(e.target.value)));
+document.getElementById('by-val').addEventListener('change', e => setBrushY(parseCm(e.target.value)));
+document.getElementById('bx-val').addEventListener('keydown', e => { if(e.key==='Enter') e.target.blur(); });
+document.getElementById('by-val').addEventListener('keydown', e => { if(e.key==='Enter') e.target.blur(); });
+
+// ── Brush Color Palette ──
+const PALETTE_DEFAULTS = [
+  '#7eb8a4','#e8d5a3','#a3c4e8','#e8a3a3','#b8a3e8','#a3e8b8','#e8c9a3',
+  '#c8a882','#8ab4cc','#d4c5a9','#9ec8b4','#c4a8c8','#b8c8a0','#d4b896'
+];
+let palette = [...PALETTE_DEFAULTS];
+let activePaletteIndex = 0;
+
+function renderPalette() {
+  const container = document.getElementById('color-presets');
+  container.innerHTML = '';
+  palette.forEach((color, i) => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (i === activePaletteIndex ? ' active' : '');
+    sw.style.background = color;
+    sw.title = 'Click to select';
+    sw.addEventListener('click', () => {
+      PAINT_COLOR = palette[i];
+      activePaletteIndex = i;
+      renderPalette();
+      syncHsbFromColor(palette[i]);
+    });
+    container.appendChild(sw);
+  });
+}
+
+// ── HSB Color Picker ──
+function hexToHsb(hex) {
+  let r = parseInt(hex.slice(1,3),16)/255;
+  let g = parseInt(hex.slice(3,5),16)/255;
+  let b = parseInt(hex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+  let h = 0, s = max === 0 ? 0 : d/max, bv = max;
+  if (d !== 0) {
+    if (max === r) h = ((g-b)/d + (g<b?6:0))/6;
+    else if (max === g) h = ((b-r)/d + 2)/6;
+    else h = ((r-g)/d + 4)/6;
+  }
+  return { h: Math.round(h*360), s: Math.round(s*100), b: Math.round(bv*100) };
+}
+
+function hsbToHex(h, s, b) {
+  s /= 100; b /= 100;
+  const f = n => {
+    const k = (n + h/60) % 6;
+    return b - b*s*Math.max(0, Math.min(k, 4-k, 1));
+  };
+  const toHex = x => Math.round(x*255).toString(16).padStart(2,'0');
+  return '#' + toHex(f(5)) + toHex(f(3)) + toHex(f(1));
+}
+
+function updateHsbSliderGradients(h, s, b) {
+  // H slider: full hue rainbow at current S/B
+  const hStops = [];
+  for (let i = 0; i <= 12; i++) hStops.push(hsbToHex(i*30, s, b));
+  const hGrad = `linear-gradient(to right, ${hStops.join(',')})`;
+
+  // S slider: from grey (s=0) to full color (s=100) at current H/B
+  const sGrad = `linear-gradient(to right, ${hsbToHex(h,0,b)}, ${hsbToHex(h,100,b)})`;
+
+  // B slider: from black to full color at current H/S
+  const bGrad = `linear-gradient(to right, #000000, ${hsbToHex(h,s,100)})`;
+
+  const setSlider = (id, grad) => {
+    const el = document.getElementById(id);
+    el.style.background = grad;
+    el.style.backgroundRepeat = 'no-repeat';
+    el.style.backgroundSize = '100% 100%';
+    el.style.backgroundPosition = '0 0';
+  };
+  setSlider('hsb-h', hGrad);
+  setSlider('hsb-s', sGrad);
+  setSlider('hsb-b', bGrad);
+}
+
+function syncHsbFromColor(hex) {
+  const { h, s, b } = hexToHsb(hex);
+  document.getElementById('hsb-h').value = h;
+  document.getElementById('hsb-s').value = s;
+  document.getElementById('hsb-b').value = b;
+  updateHsbSliderGradients(h, s, b);
+}
+
+function onHsbInput() {
+  const h = +document.getElementById('hsb-h').value;
+  const s = +document.getElementById('hsb-s').value;
+  const b = +document.getElementById('hsb-b').value;
+  updateHsbSliderGradients(h, s, b);
+  const hex = hsbToHex(h, s, b);
+  PAINT_COLOR = hex;
+  palette[activePaletteIndex] = hex;
+  renderPalette();
+}
+
+document.getElementById('hsb-h').addEventListener('input', onHsbInput);
+document.getElementById('hsb-s').addEventListener('input', onHsbInput);
+document.getElementById('hsb-b').addEventListener('input', onHsbInput);
+
+// ── Eyedropper ──
+const eyedropperBtn = document.getElementById('eyedropper-btn');
+const eyedropperLabel = document.getElementById('eyedropper-label');
+
+eyedropperBtn.addEventListener('click', () => {
+  isEyedropping = !isEyedropping;
+  eyedropperBtn.classList.toggle('active', isEyedropping);
+  eyedropperLabel.textContent = isEyedropping ? 'Click a cell…' : 'Pick from canvas';
+  wrap.style.cursor = isEyedropping ? 'crosshair' : 'crosshair';
+});
+
+function eyedropCell(sx, sy) {
+  const { col, row } = screenToCell(sx, sy);
+  const key = `${col},${row}`;
+  for (let i = layers.length - 1; i >= 0; i--) {
+    if (!layers[i].visible) continue;
+    if (layers[i].cells.has(key)) {
+      const picked = layers[i].cells.get(key);
+      palette[activePaletteIndex] = picked;
+      PAINT_COLOR = picked;
+      renderPalette();
+      syncHsbFromColor(picked);
+      break;
+    }
+  }
+  isEyedropping = false;
+  eyedropperBtn.classList.remove('active');
+  eyedropperLabel.textContent = 'Pick from canvas';
+}
+
+// ── Rulers ──
+function niceInterval(cellPx) {
+  for (const iv of [0.05,0.1,0.25,0.5,1,2,5,10,20,50,100])
+    if (iv * cellPx * 20 >= 40) return iv;
+  return 100;
+}
+
+function brushBounds(cellPx) {
+  if (!mouseCell) return null;
+  const offC = Math.floor(brushX/2), offR = Math.floor(brushY/2);
+  return {
+    x1: (mouseCell.col - offC) * cellPx - viewX,
+    x2: (mouseCell.col - offC + brushX) * cellPx - viewX,
+    y1: (mouseCell.row - offR) * cellPx - viewY,
+    y2: (mouseCell.row - offR + brushY) * cellPx - viewY,
+  };
+}
+
+function drawRulerH(rc, rx, ticksDown) {
+  const W = rc.width, H = rc.height;
+  rx.fillStyle = RULER_BG; rx.fillRect(0,0,W,H);
+  const cellPx = CELL_CM * zoom;
+  const iv = niceInterval(cellPx);
+  const firstTick = Math.ceil((viewX/zoom/100) / iv) * iv;
+  rx.font = '9px IBM Plex Mono, monospace';
+  for (let t = firstTick; ; t += iv) {
+    const sx = (t*100/CELL_CM)*cellPx - viewX;
+    if (sx > W + iv*cellPx*20) break;
+    if (sx < 0) continue;
+    rx.strokeStyle = RULER_TICK; rx.lineWidth = 1;
+    rx.beginPath();
+    ticksDown ? (rx.moveTo(sx,0), rx.lineTo(sx,H*.7)) : (rx.moveTo(sx,H), rx.lineTo(sx,H*.3));
+    rx.stroke();
+    const lbl = t===0 ? '0' : (Number.isInteger(t) ? t+'m' : t.toFixed(2).replace(/\.?0+$/,'')+'m');
+    rx.fillStyle = t===0 ? RULER_ACCENT : RULER_TEXT;
+    rx.textAlign = 'left'; rx.fillText(lbl, sx+2, ticksDown ? H-3 : H-3);
+  }
+  if (mouseCell && !isPanning) {
+    const b = brushBounds(cellPx);
+    rx.fillStyle = PAINT_COLOR; rx.globalAlpha = .2; rx.fillRect(b.x1,0,b.x2-b.x1,H);
+    rx.globalAlpha=1; rx.strokeStyle=PAINT_COLOR; rx.lineWidth=1;
+    rx.beginPath(); rx.moveTo(b.x1,0); rx.lineTo(b.x1,H); rx.moveTo(b.x2,0); rx.lineTo(b.x2,H); rx.stroke();
+  }
+  rx.strokeStyle='#333'; rx.lineWidth=1; rx.beginPath();
+  ticksDown ? (rx.moveTo(0,0),rx.lineTo(W,0)) : (rx.moveTo(0,H-.5),rx.lineTo(W,H-.5)); rx.stroke();
+}
+
+function drawRulerV(rc, rx, ticksRight) {
+  const W = rc.width, H = rc.height;
+  rx.fillStyle = RULER_BG; rx.fillRect(0,0,W,H);
+  const cellPx = CELL_CM * zoom;
+  const iv = niceInterval(cellPx);
+  const firstTick = Math.ceil((viewY/zoom/100) / iv) * iv;
+  rx.font = '9px IBM Plex Mono, monospace';
+  for (let t = firstTick; ; t += iv) {
+    const sy = (t*100/CELL_CM)*cellPx - viewY;
+    if (sy > H + iv*cellPx*20) break;
+    if (sy < 0) continue;
+    rx.strokeStyle = RULER_TICK; rx.lineWidth = 1;
+    rx.beginPath();
+    ticksRight ? (rx.moveTo(0,sy), rx.lineTo(W*.7,sy)) : (rx.moveTo(W,sy), rx.lineTo(W*.3,sy)); rx.stroke();
+    const lbl = t===0 ? '0' : (Number.isInteger(t) ? t+'m' : t.toFixed(2).replace(/\.?0+$/,'')+'m');
+    rx.save();
+    ticksRight ? rx.translate(3,sy-2) : rx.translate(W-3,sy-2);
+    ticksRight ? rx.rotate(Math.PI/2) : rx.rotate(-Math.PI/2);
+    rx.fillStyle = t===0 ? RULER_ACCENT : RULER_TEXT;
+    rx.textAlign='left'; rx.fillText(lbl,0,0); rx.restore();
+  }
+  if (mouseCell && !isPanning) {
+    const b = brushBounds(cellPx);
+    rx.fillStyle=PAINT_COLOR; rx.globalAlpha=.2; rx.fillRect(0,b.y1,W,b.y2-b.y1);
+    rx.globalAlpha=1; rx.strokeStyle=PAINT_COLOR; rx.lineWidth=1;
+    rx.beginPath(); rx.moveTo(0,b.y1); rx.lineTo(W,b.y1); rx.moveTo(0,b.y2); rx.lineTo(W,b.y2); rx.stroke();
+  }
+  rx.strokeStyle='#333'; rx.lineWidth=1; rx.beginPath();
+  ticksRight ? (rx.moveTo(0,0),rx.lineTo(0,H)) : (rx.moveTo(W-.5,0),rx.lineTo(W-.5,H)); rx.stroke();
+}
+
+// ── Grid ──
+function cs() { return CELL_CM * zoom; }
+function screenToCell(sx, sy) {
+  return { col: Math.floor((sx+viewX)/zoom/CELL_CM), row: Math.floor((sy+viewY)/zoom/CELL_CM) };
+}
+
+// ── Scene helpers ──
+function sceneToScreen(scene) {
+  // scene.x, scene.y in world-px (zoom=1 = 1cm)
+  // returns screen coords of scene center
+  const sx = scene.x * zoom - viewX;
+  const sy = scene.y * zoom - viewY;
+  return { sx, sy };
+}
+
+function drawSceneImage(scene, forceAlpha) {
+  if (!scene.img) return;
+  const { sx, sy } = sceneToScreen(scene);
+  const w = scene.img.naturalWidth * zoom * scene.scale;
+  const h = scene.img.naturalHeight * zoom * scene.scale;
+  ctx.save();
+  ctx.globalAlpha = forceAlpha !== undefined ? forceAlpha : scene.opacity;
+  ctx.translate(sx, sy);
+  ctx.rotate(scene.angleDeg * Math.PI / 180);
+  ctx.drawImage(scene.img, -w/2, -h/2, w, h);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function drawSceneHandles(scene) {
+  if (!scene.img) return;
+  const { sx, sy } = sceneToScreen(scene);
+  const w = scene.img.naturalWidth * zoom * scene.scale;
+  const h = scene.img.naturalHeight * zoom * scene.scale;
+  const ang = scene.angleDeg * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(ang);
+
+  // border
+  ctx.strokeStyle = '#c4a882';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  ctx.strokeRect(-w/2, -h/2, w, h);
+  ctx.setLineDash([]);
+
+  // 4 corner scale handles
+  const corners = [[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]];
+  for (const [cx, cy] of corners) {
+    ctx.fillStyle = '#c4a882';
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.rect(cx-5, cy-5, 10, 10);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // rotate handle (top center)
+  const rhy = -h/2 - 24;
+  ctx.beginPath();
+  ctx.moveTo(0, -h/2);
+  ctx.lineTo(0, rhy);
+  ctx.strokeStyle = '#c4a882';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, rhy, 6, 0, Math.PI*2);
+  ctx.fillStyle = '#c4a882';
+  ctx.fill();
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// returns 'move'|'rotate'|'scale-tl'|'scale-tr'|'scale-br'|'scale-bl'|null
+function hitTestScene(sx, sy) {
+  if (!activeSceneId) return null;
+  const scene = activeScene();
+  if (!scene || !scene.img) return null;
+  const { sx: cx, sy: cy } = sceneToScreen(scene);
+  const ang = scene.angleDeg * Math.PI / 180;
+  const dx = sx - cx, dy = sy - cy;
+  const lx =  dx * Math.cos(-ang) - dy * Math.sin(-ang);
+  const ly =  dx * Math.sin(-ang) + dy * Math.cos(-ang);
+  const w = scene.img.naturalWidth * zoom * scene.scale;
+  const h = scene.img.naturalHeight * zoom * scene.scale;
+  const rhy = -h/2 - 24;
+
+  // rotate handle
+  if (Math.hypot(lx, ly - rhy) < 10) return 'rotate';
+
+  // corner handles (8px hit area)
+  const corners = [['scale-tl',-w/2,-h/2],['scale-tr',w/2,-h/2],['scale-br',w/2,h/2],['scale-bl',-w/2,h/2]];
+  for (const [name, hx, hy] of corners) {
+    if (Math.abs(lx - hx) < 8 && Math.abs(ly - hy) < 8) return name;
+  }
+
+  // move = inside image
+  if (lx >= -w/2 && lx <= w/2 && ly >= -h/2 && ly <= h/2) return 'move';
+  return null;
+}
+
+// ── rAF draw throttle ──
+let rafPending = false;
+function requestDraw() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; draw(); });
+}
+
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = GRID_BG_PRESETS[settings.gridBg]; ctx.fillRect(0,0,W,H);
+  const cellPx = cs();
+  const c0 = Math.floor(viewX/cellPx)-1, c1 = Math.ceil((viewX+W)/cellPx)+1;
+  const r0 = Math.floor(viewY/cellPx)-1, r1 = Math.ceil((viewY+H)/cellPx)+1;
+
+  // ── Draw non-active scenes (bottom, dim) ──
+  for (const scene of scenes) {
+    if (!scene.visible || scene.id === activeSceneId) continue;
+    if (soloSceneId && scene.id !== soloSceneId) continue;
+    drawSceneImage(scene);
+  }
+
+  // ── Draw layers (non-active, in z-order bottom→top) ──
+  for (const layer of layers) {
+    if (!layer.visible || layer.id === activeLayerId) continue;
+    if (soloLayerId && layer.id !== soloLayerId) continue;
+    ctx.globalAlpha = layer.opacity;
+    for (const [key, color] of layer.cells) {
+      const [c,r] = key.split(',').map(Number);
+      if (c<c0||c>c1||r<r0||r>r1) continue;
+      ctx.fillStyle = color;
+      ctx.fillRect(c*cellPx-viewX, r*cellPx-viewY, cellPx, cellPx);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // ── Draw active scene on top with handles ──
+  if (activeSceneId) {
+    const scene = activeScene();
+    const sceneVisible = scene && scene.visible && (!soloSceneId || scene.id === soloSceneId);
+    if (sceneVisible) {
+      drawSceneImage(scene);
+      drawSceneHandles(scene);
+    }
+  }
+
+  // ── Draw active layer on top of everything ──
+  if (activeLayerId) {
+    const layer = activeLayer();
+    const layerVisible = layer && layer.visible && (!soloLayerId || layer.id === soloLayerId);
+    if (layerVisible) {
+      ctx.globalAlpha = layer.opacity;
+      for (const [key, color] of layer.cells) {
+        const [c,r] = key.split(',').map(Number);
+        if (c<c0||c>c1||r<r0||r>r1) continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(c*cellPx-viewX, r*cellPx-viewY, cellPx, cellPx);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  if (ui.grid) {
+    ctx.strokeStyle=GRID_LINE_PRESETS[settings.gridLines].thin; ctx.lineWidth=.5; ctx.beginPath();
+    for(let c=c0;c<=c1;c++){const x=c*cellPx-viewX;ctx.moveTo(x,0);ctx.lineTo(x,H);}
+    for(let r=r0;r<=r1;r++){const y=r*cellPx-viewY;ctx.moveTo(0,y);ctx.lineTo(W,y);}
+    ctx.stroke();
+
+    ctx.strokeStyle=GRID_LINE_PRESETS[settings.gridLines].thick; ctx.lineWidth=1; ctx.beginPath();
+    for(let c=c0;c<=c1;c++){if(c%20!==0)continue;const x=c*cellPx-viewX;ctx.moveTo(x,0);ctx.lineTo(x,H);}
+    for(let r=r0;r<=r1;r++){if(r%20!==0)continue;const y=r*cellPx-viewY;ctx.moveTo(0,y);ctx.lineTo(W,y);}
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle='#e8d5a318'; ctx.lineWidth=1; ctx.beginPath();
+  ctx.moveTo(-viewX,0);ctx.lineTo(-viewX,H);ctx.moveTo(0,-viewY);ctx.lineTo(W,-viewY);ctx.stroke();
+
+  if (mouseCell && !isPanning && !isEyedropping) {
+    if (activeMeasurementId && !activeLayerId) {
+      // measurement mode: single cell ghost
+      const gx = mouseCell.col * cellPx - viewX, gy = mouseCell.row * cellPx - viewY;
+      ctx.fillStyle = PAINT_COLOR; ctx.globalAlpha = .25; ctx.fillRect(gx, gy, cellPx, cellPx);
+      ctx.globalAlpha = 1; ctx.strokeStyle = PAINT_COLOR; ctx.lineWidth = 1;
+      ctx.strokeRect(gx + .5, gy + .5, cellPx - 1, cellPx - 1);
+    } else {
+    // axis lock: snap mouseCell for display
+    let displayCell = mouseCell;
+    if (axisLock === 'x') displayCell = {col: mouseCell.col, row: axisDragStart.row};
+    if (axisLock === 'y') displayCell = {col: axisDragStart.col, row: mouseCell.row};
+
+    // ghost brush at current position
+    const offC=Math.floor(brushX/2), offR=Math.floor(brushY/2);
+    const gx=(displayCell.col-offC)*cellPx-viewX, gy=(displayCell.row-offR)*cellPx-viewY;
+    const gw=brushX*cellPx, gh=brushY*cellPx;
+    ctx.fillStyle=PAINT_COLOR; ctx.globalAlpha=.35; ctx.fillRect(gx,gy,gw,gh);
+    ctx.globalAlpha=1; ctx.strokeStyle=PAINT_COLOR; ctx.lineWidth=1;
+    ctx.strokeRect(gx+.5,gy+.5,gw-1,gh-1);
+
+    // line mode preview: ghost all cells from anchor to current — offscreen to avoid alpha accumulation
+    if (lineAnchor && shiftDown && !isPainting && !isErasing) {
+      const pts = linePoints(lineAnchor.col, lineAnchor.row, displayCell.col, displayCell.row);
+      const offscreen = document.createElement('canvas');
+      offscreen.width = W; offscreen.height = H;
+      const octx = offscreen.getContext('2d');
+      octx.fillStyle = PAINT_COLOR;
+      for (const {col, row} of pts) {
+        octx.fillRect(
+          (col-offC)*cellPx-viewX, (row-offR)*cellPx-viewY,
+          brushX*cellPx, brushY*cellPx
+        );
+      }
+      ctx.globalAlpha = .3;
+      ctx.drawImage(offscreen, 0, 0);
+      ctx.globalAlpha = 1;
+      // anchor dot
+      ctx.fillStyle = PAINT_COLOR; ctx.globalAlpha = .7;
+      ctx.fillRect(
+        (lineAnchor.col-offC)*cellPx-viewX+1, (lineAnchor.row-offR)*cellPx-viewY+1,
+        brushX*cellPx-2, brushY*cellPx-2
+      );
+      ctx.globalAlpha = 1;
+    }
+    } // end else (not measurement mode)
+  }
+
+  // ── Set Scale preview ──
+  if (isSettingScale) {
+    const p1sx = scalePoint1 ? scalePoint1.wx * zoom - viewX : null;
+    const p1sy = scalePoint1 ? scalePoint1.wy * zoom - viewY : null;
+    const endX = scalePoint2 ? scalePoint2.wx * zoom - viewX : (scaleMouse ? scaleMouse.wx * zoom - viewX : null);
+    const endY = scalePoint2 ? scalePoint2.wy * zoom - viewY : (scaleMouse ? scaleMouse.wy * zoom - viewY : null);
+
+    if (p1sx !== null) {
+      // dot at point 1
+      ctx.beginPath(); ctx.arc(p1sx, p1sy, 5, 0, Math.PI*2);
+      ctx.fillStyle = '#e8d5a3'; ctx.fill();
+
+      if (endX !== null) {
+        // line
+        ctx.beginPath(); ctx.moveTo(p1sx, p1sy); ctx.lineTo(endX, endY);
+        ctx.strokeStyle = '#e8d5a3'; ctx.lineWidth = 1.5; ctx.setLineDash([5,4]); ctx.stroke();
+        ctx.setLineDash([]);
+        // dot at point 2
+        ctx.beginPath(); ctx.arc(endX, endY, 5, 0, Math.PI*2);
+        ctx.fillStyle = '#e8d5a3'; ctx.fill();
+      }
+    }
+  }
+
+  // ── Draw measurements ──
+  drawMeasurements(cellPx);
+
+  drawRulerH(rulerTop,    rtx, false);
+  drawRulerH(rulerBottom, rbx, true);
+  drawRulerV(rulerLeft,   rlx, false);
+  drawRulerV(rulerRight,  rrx, true);
+  updateCalcResults();
+  updateLayerProps();
+  updateMeasProps();
+}
+
+function drawMeasurements(cellPx) {
+  if (!measurements.length) return;
+  const visibleMeas = measurements.filter(m => {
+    if (!m.visible) return false;
+    if (soloMeasurementId && m.id !== soloMeasurementId) return false;
+    return true;
+  });
+  if (!visibleMeas.length) return;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  for (const meas of visibleMeas) {
+    if (!meas.segments.length) continue;
+    ctx.globalAlpha = meas.opacity;
+    const lineW = Math.max(1, (meas.lineWidth ?? 3) * cellPx);
+    for (const seg of meas.segments) {
+      const sx1 = seg.x1 * cellPx - viewX;
+      const sy1 = seg.y1 * cellPx - viewY;
+      const sx2 = seg.x2 * cellPx - viewX;
+      const sy2 = seg.y2 * cellPx - viewY;
+
+      // main line
+      ctx.beginPath();
+      ctx.moveTo(sx1, sy1);
+      ctx.lineTo(sx2, sy2);
+      ctx.strokeStyle = seg.color;
+      ctx.lineWidth = lineW;
+      ctx.globalAlpha = meas.opacity * 0.55;
+      ctx.stroke();
+
+      // center line highlight
+      ctx.beginPath();
+      ctx.moveTo(sx1, sy1);
+      ctx.lineTo(sx2, sy2);
+      ctx.strokeStyle = seg.color;
+      ctx.lineWidth = Math.max(1, lineW * 0.18);
+      ctx.globalAlpha = meas.opacity * 0.9;
+      ctx.stroke();
+
+      // endpoint dots
+      ctx.globalAlpha = meas.opacity * 0.85;
+      ctx.fillStyle = seg.color;
+      const dotR = Math.max(2, lineW * 0.28);
+      ctx.beginPath(); ctx.arc(sx1, sy1, dotR, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx2, sy2, dotR, 0, Math.PI*2); ctx.fill();
+
+      // length label
+      const len = segmentLength(seg);
+      if (len > 0.01) {
+        const mx = (sx1 + sx2) / 2;
+        const my = (sy1 + sy2) / 2;
+        const angle = Math.atan2(sy2 - sy1, sx2 - sx1);
+        const label = len.toFixed(2) + ' m';
+        const fontSize = Math.max(9, Math.min(14, lineW * 0.55));
+        ctx.save();
+        ctx.globalAlpha = meas.opacity * 0.92;
+        ctx.translate(mx, my);
+        // keep text readable (not upside-down)
+        const textAngle = (angle > Math.PI/2 || angle < -Math.PI/2) ? angle + Math.PI : angle;
+        ctx.rotate(textAngle);
+        ctx.font = `${fontSize}px IBM Plex Mono, monospace`;
+        const tw = ctx.measureText(label).width;
+        const pad = 3;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(-tw/2 - pad, -fontSize - pad, tw + pad*2, fontSize + pad*2);
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(label, 0, -1);
+        ctx.restore();
+      }
+    }
+  }
+
+  // ── Ghost preview while drawing ──
+  if (isMeasDrawing && measDrawStart && measDrawCurrent && activeMeasurementId) {
+    const s = measDrawStart, e = measDrawCurrent;
+    const sx1 = s.col * cellPx - viewX, sy1 = s.row * cellPx - viewY;
+    const sx2 = e.col * cellPx - viewX, sy2 = e.row * cellPx - viewY;
+    const activeMeas = measurements.find(m => m.id === activeMeasurementId);
+    const lineW = Math.max(1, ((activeMeas?.lineWidth ?? 3)) * cellPx);
+    ctx.globalAlpha = 0.4;
+    ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2);
+    ctx.strokeStyle = PAINT_COLOR;
+    ctx.lineWidth = lineW;
+    ctx.stroke();
+    // endpoint dots
+    ctx.fillStyle = PAINT_COLOR; ctx.globalAlpha = 0.7;
+    const dotR = Math.max(2, lineW * 0.28);
+    ctx.beginPath(); ctx.arc(sx1, sy1, dotR, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx2, sy2, dotR, 0, Math.PI*2); ctx.fill();
+    // center cross at brush center (start)
+    ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = PAINT_COLOR; ctx.lineWidth = 1.5;
+    const cr = 4;
+    ctx.beginPath(); ctx.moveTo(sx1-cr,sy1); ctx.lineTo(sx1+cr,sy1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx1,sy1-cr); ctx.lineTo(sx1,sy1+cr); ctx.stroke();
+  } else if (mouseCell && activeMeasurementId && !isPanning && !isMeasDrawing) {
+    // ghost center cross at hover when in measurement mode
+    const cellPx2 = cs();
+    const mx = (mouseCell.col + 0.5) * cellPx2 - viewX;
+    const my = (mouseCell.row + 0.5) * cellPx2 - viewY;
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = '#a0c8e8'; ctx.lineWidth = 1.5;
+    const cr = 5;
+    ctx.beginPath(); ctx.moveTo(mx-cr,my); ctx.lineTo(mx+cr,my); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mx,my-cr); ctx.lineTo(mx,my+cr); ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ── Bresenham line ──
+function linePoints(c0, r0, c1, r1) {
+  const pts = [];
+  let dc = Math.abs(c1-c0), dr = Math.abs(r1-r0);
+  let sc = c0<c1?1:-1, sr = r0<r1?1:-1;
+  let err = dc - dr;
+  let c = c0, r = r0;
+  while (true) {
+    pts.push({col:c, row:r});
+    if (c===c1 && r===r1) break;
+    const e2 = 2*err;
+    if (e2 > -dr) { err -= dr; c += sc; }
+    if (e2 <  dc) { err += dc; r += sr; }
+  }
+  return pts;
+}
+
+function paintCells(cells, layer, erase) {
+  const offC=Math.floor(brushX/2), offR=Math.floor(brushY/2);
+  for (const {col,row} of cells) {
+    for (let dc=0;dc<brushX;dc++) for (let dr=0;dr<brushY;dr++) {
+      const key=`${col-offC+dc},${row-offR+dr}`;
+      erase ? layer.cells.delete(key) : layer.cells.set(key, PAINT_COLOR);
+    }
+  }
+}
+
+// ── Paint ──
+function applyBrush(sx, sy, erase) {
+  const layer = activeLayer(); if (!layer) return;
+  let {col, row} = screenToCell(sx, sy);
+
+  // axis lock during shift+drag
+  if (axisLock === 'x') row = axisDragStart.row;
+  if (axisLock === 'y') col = axisDragStart.col;
+
+  paintCells([{col, row}], layer, erase);
+  if (!erase) lineAnchor = {col, row};
+  requestDraw();
+}
+
+function applyLine(from, to, erase) {
+  const layer = activeLayer(); if (!layer) return;
+  pushHistory();
+  const pts = linePoints(from.col, from.row, to.col, to.row);
+  paintCells(pts, layer, erase);
+  if (!erase) lineAnchor = {col: to.col, row: to.row};
+  requestDraw();
+}
+
+// ── Measurement segment hit-test & erase ──
+function eraseMeasSegmentAt(sx, sy) {
+  const meas = activeMeasurement();
+  if (!meas || !meas.segments.length) return;
+  const cellPx = cs();
+  const lineW = Math.max(1, (meas.lineWidth ?? 3) * cellPx);
+  let bestIdx = -1, bestDist = Infinity;
+  meas.segments.forEach((seg, i) => {
+    const ax = seg.x1 * cellPx - viewX, ay = seg.y1 * cellPx - viewY;
+    const bx = seg.x2 * cellPx - viewX, by = seg.y2 * cellPx - viewY;
+    const dist = pointToSegmentDist(sx, sy, ax, ay, bx, by);
+    const halfW = Math.max(4, lineW * 0.55);
+    if (dist < halfW && dist < bestDist) { bestDist = dist; bestIdx = i; }
+  });
+  if (bestIdx !== -1) {
+    pushHistory();
+    meas.segments.splice(bestIdx, 1);
+    renderMeasurements();
+    requestDraw();
+  }
+}
+
+function pointToSegmentDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx*dx + dy*dy;
+  if (lenSq < 0.0001) return Math.hypot(px-ax, py-ay);
+  const t = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / lenSq));
+  return Math.hypot(px - (ax + t*dx), py - (ay + t*dy));
+}
+
+// ── Events ──
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect=wrap.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const wx=(mx+viewX)/zoom, wy=(my+viewY)/zoom;
+  // use deltaY magnitude only — ignore sign flip that Shift causes in some browsers
+  const delta = e.shiftKey ? e.deltaX || e.deltaY : e.deltaY;
+  zoom=clamp(zoom*(delta>0?.85:1.18),ZOOM_MIN,ZOOM_MAX);
+  viewX=wx*zoom-mx; viewY=wy*zoom-my; requestDraw();
+},{passive:false});
+
+wrap.addEventListener('mousedown', e => {
+  const rect=wrap.getBoundingClientRect();
+  const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+  if (e.button===1) {
+    e.preventDefault();
+    const now=Date.now();
+    if (now-lastMiddleClick<400) { viewX=-wrap.clientWidth/2; viewY=-wrap.clientHeight/2; requestDraw(); lastMiddleClick=0; return; }
+    lastMiddleClick=now; isPanning=true;
+    panStartX=e.clientX; panStartY=e.clientY; panViewX=viewX; panViewY=viewY;
+    wrap.style.cursor='grab';
+  } else if (e.button===0) {
+    // set scale mode intercepts all clicks
+    if (isSettingScale) {
+      const wx = (sx + viewX) / zoom;
+      const wy = (sy + viewY) / zoom;
+      if (!scalePoint1) {
+        scalePoint1 = { wx, wy };
+        document.getElementById('scale-hint').textContent = 'Click point 2 on the image';
+      } else {
+        scalePoint2 = { wx, wy };
+        document.getElementById('scale-hint').style.display = 'none';
+        const inp = document.getElementById('scale-dist-input');
+        inp.value = '';
+        document.getElementById('scale-distance-modal').classList.remove('hidden');
+        setTimeout(() => inp.focus(), 50);
+      }
+      requestDraw(); return;
+    }
+
+    // scene transform mode
+    if (activeSceneId) {
+      const hit = hitTestScene(sx, sy);
+      if (hit) {
+        isTransforming = true;
+        transformMode = hit;
+        transformStartX = e.clientX;
+        transformStartY = e.clientY;
+        const scene = activeScene();
+        transformStartSceneX = scene.x;
+        transformStartSceneY = scene.y;
+        transformStartAngle = scene.angleDeg;
+        transformStartScale = scene.scale;
+        transformGhostState = { x: scene.x, y: scene.y, scale: scene.scale, angleDeg: scene.angleDeg };
+
+        // for scale: compute anchor = opposite corner in world coords
+        if (hit.startsWith('scale-')) {
+          const w2 = scene.img.naturalWidth * scene.scale / 2;
+          const h2 = scene.img.naturalHeight * scene.scale / 2;
+          const ang = scene.angleDeg * Math.PI / 180;
+          // local coords of anchor (opposite corner)
+          const anchorMap = {
+            'scale-tl': [ w2,  h2], 'scale-tr': [-w2,  h2],
+            'scale-br': [-w2, -h2], 'scale-bl': [ w2, -h2]
+          };
+          const [lax, lay] = anchorMap[hit];
+          // rotate to world
+          scaleAnchorX = scene.x + lax * Math.cos(ang) - lay * Math.sin(ang);
+          scaleAnchorY = scene.y + lax * Math.sin(ang) + lay * Math.cos(ang);
+        }
+      }
+      return;
+    }
+
+    if (isEyedropping) { eyedropCell(sx, sy); return; }
+
+    // ── Measurement drawing mode ──
+    if (activeMeasurementId && !activeLayerId && !activeSceneId) {
+      const cell = screenToCell(sx, sy);
+      const pt = { col: cell.col + 0.5, row: cell.row + 0.5 };
+      if (!isMeasDrawing) {
+        // First click — set start, enter drawing mode
+        isMeasDrawing = true;
+        measDragMode = false;
+        measDrawStart = pt;
+        measDrawCurrent = pt;
+      } else {
+        // Second click — commit segment
+        measCommitSegment();
+      }
+      requestDraw(); return;
+    }
+
+    const cell = screenToCell(sx, sy);
+    if (e.shiftKey && lineAnchor) { applyLine(lineAnchor, cell, false); return; }
+    isPainting = true;
+    axisLock = null;
+    axisDragStart = null;
+    pushHistory();
+    applyBrush(sx, sy, false);
+
+  } else if (e.button===2) {
+    if (activeSceneId) return;
+
+    // ── Measurement right-click erase (start drag) ──
+    if (activeMeasurementId && !activeLayerId) {
+      isMeasErasing = true;
+      eraseMeasSegmentAt(sx, sy); return;
+    }
+
+    pushHistory();
+    axisLock = null;
+    axisDragStart = null;
+    isErasing=true; applyBrush(sx, sy, true);
+  }
+});
+
+window.addEventListener('mouseup', e => {
+  if(e.button===1){isPanning=false;wrap.style.cursor='crosshair';}
+  if(e.button===0){
+    // ── Finish measurement segment (drag mode only) ──
+    if (isMeasDrawing && measDragMode && measDrawStart && measDrawCurrent && activeMeasurementId) {
+      measCommitSegment();
+      requestDraw(); return;
+    }
+    isPainting=false; axisLock=null; axisDragStart=null;
+    isTransforming=false; transformMode=null; transformGhostState=null;
+  }
+  if(e.button===2) { isErasing=false; isMeasErasing=false; axisLock=null; axisDragStart=null; }
+});
+
+wrap.addEventListener('mousemove', e => {
+  const rect=wrap.getBoundingClientRect();
+  const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+  if(isPanning){viewX=panViewX-(e.clientX-panStartX);viewY=panViewY-(e.clientY-panStartY);requestDraw();return;}
+
+  // set scale: track mouse for preview line
+  if (isSettingScale) {
+    scaleMouse = { wx: (sx + viewX) / zoom, wy: (sy + viewY) / zoom };
+    requestDraw(); return;
+  }
+
+  // scene transform
+  if (isTransforming && activeSceneId) {
+    const scene = activeScene();
+    if (transformMode === 'move') {
+      scene.x = transformStartSceneX + (e.clientX - transformStartX) / zoom;
+      scene.y = transformStartSceneY + (e.clientY - transformStartY) / zoom;
+    } else if (transformMode === 'rotate') {
+      const {sx: cx, sy: cy} = sceneToScreen(scene);
+      const startAng = Math.atan2(transformStartY - rect.top - cy, transformStartX - rect.left - cx);
+      const curAng   = Math.atan2(sy - cy, sx - cx);
+      let newAngle = transformStartAngle + (curAng - startAng) * 180 / Math.PI;
+      const snapped = Math.round(newAngle / 90) * 90;
+      if (Math.abs(newAngle - snapped) < 5) newAngle = snapped;
+      scene.angleDeg = newAngle;
+    } else if (transformMode.startsWith('scale-')) {
+      const ang = scene.angleDeg * Math.PI / 180;
+      const curWX = (sx + viewX) / zoom;
+      const curWY = (sy + viewY) / zoom;
+      const w2 = scene.img.naturalWidth * transformStartScale / 2;
+      const h2 = scene.img.naturalHeight * transformStartScale / 2;
+      const cornerMap = {
+        'scale-tl': [-w2,-h2], 'scale-tr': [w2,-h2],
+        'scale-br': [w2, h2],  'scale-bl': [-w2, h2]
+      };
+      const [lcx, lcy] = cornerMap[transformMode];
+      const origCWX = transformStartSceneX + lcx*Math.cos(ang) - lcy*Math.sin(ang);
+      const origCWY = transformStartSceneY + lcx*Math.sin(ang) + lcy*Math.cos(ang);
+      const origDist = Math.hypot(origCWX - scaleAnchorX, origCWY - scaleAnchorY);
+      const curDist  = Math.hypot(curWX  - scaleAnchorX, curWY  - scaleAnchorY);
+      if (origDist > 0.01) {
+        const newScale = Math.max(0.05, transformStartScale * curDist / origDist);
+        scene.scale = newScale;
+        const nw2 = scene.img.naturalWidth  * newScale / 2;
+        const nh2 = scene.img.naturalHeight * newScale / 2;
+        const anchorMap = {
+          'scale-tl': [nw2, nh2], 'scale-tr': [-nw2, nh2],
+          'scale-br': [-nw2,-nh2],'scale-bl': [nw2, -nh2]
+        };
+        const [lax, lay] = anchorMap[transformMode];
+        scene.x = scaleAnchorX - (lax*Math.cos(ang) - lay*Math.sin(ang));
+        scene.y = scaleAnchorY - (lax*Math.sin(ang) + lay*Math.cos(ang));
+      }
+    }
+    requestDraw(); return;
+  }
+
+  // cursor feedback in scene mode
+  if (activeSceneId) {
+    const hit = hitTestScene(sx, sy);
+    const cursorMap = {
+      'rotate': 'grab', 'move': 'move',
+      'scale-tl': 'nw-resize', 'scale-tr': 'ne-resize',
+      'scale-br': 'se-resize', 'scale-bl': 'sw-resize'
+    };
+    wrap.style.cursor = cursorMap[hit] || 'default';
+    requestDraw(); return;
+  }
+
+  mouseCell = screenToCell(sx,sy);
+
+  // ── Measurement draw preview ──
+  if (isMeasDrawing && measDrawStart) {
+    const cell = screenToCell(sx, sy);
+    let col = cell.col + 0.5, row = cell.row + 0.5;
+    if (e.shiftKey) {
+      const dc = Math.abs(col - measDrawStart.col);
+      const dr = Math.abs(row - measDrawStart.row);
+      if (dc >= dr) row = measDrawStart.row; else col = measDrawStart.col;
+    }
+    measDrawCurrent = { col, row };
+    // if mouse has moved more than 1 cell, treat as drag mode
+    if (!measDragMode && Math.hypot(col - measDrawStart.col, row - measDrawStart.row) > 1) {
+      measDragMode = true;
+    }
+    requestDraw(); return;
+  }
+
+  // ── Measurement drag-erase ──
+  if (isMeasErasing) {
+    mouseCell = screenToCell(sx, sy);
+    eraseMeasSegmentAt(sx, sy);
+    requestDraw(); return;
+  }
+
+  if (isPainting) {
+    if (e.shiftKey) {
+      if (!axisDragStart) axisDragStart = {col: mouseCell.col, row: mouseCell.row};
+      if (!axisLock) {
+        const dc = Math.abs(mouseCell.col - axisDragStart.col);
+        const dr = Math.abs(mouseCell.row - axisDragStart.row);
+        if (dc > 1 || dr > 1) axisLock = dc >= dr ? 'x' : 'y';
+      }
+    } else { axisLock = null; axisDragStart = null; }
+    applyBrush(sx, sy, false);
+  } else if(isErasing) {
+    if (e.shiftKey) {
+      if (!axisDragStart) axisDragStart = {col: mouseCell.col, row: mouseCell.row};
+      if (!axisLock) {
+        const dc = Math.abs(mouseCell.col - axisDragStart.col);
+        const dr = Math.abs(mouseCell.row - axisDragStart.row);
+        if (dc > 1 || dr > 1) axisLock = dc >= dr ? 'x' : 'y';
+      }
+    } else { axisLock = null; axisDragStart = null; }
+    applyBrush(sx, sy, true);
+  } else { requestDraw(); }
+});
+
+// ── Keyboard ──
+window.addEventListener('keydown', e => {
+  if (!e.ctrlKey && !e.metaKey) shiftDown = e.shiftKey;
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (e.key === 'Escape') {
+    if (!document.getElementById('scale-distance-modal').classList.contains('hidden')) {
+      document.getElementById('scale-distance-modal').classList.add('hidden');
+      cancelSetScale(); return;
+    }
+    if (isSettingScale) { cancelSetScale(); return; }
+    if (isMeasDrawing && !measDragMode) {
+      isMeasDrawing = false; measDrawStart = null; measDrawCurrent = null;
+      requestDraw(); return;
+    }
+  }
+  if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undoAction(); return; }
+  if (ctrl && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redoAction(); return; }
+  if (ctrl && e.key === 'y') { e.preventDefault(); redoAction(); return; }
+  requestDraw();
+});
+window.addEventListener('keyup', e => {
+  if (!e.ctrlKey && !e.metaKey) shiftDown = e.shiftKey;
+  requestDraw();
+});
+
+document.getElementById('undo-btn').addEventListener('click', undoAction);
+document.getElementById('redo-btn').addEventListener('click', redoAction);
+
+wrap.addEventListener('mouseleave',()=>{
+  mouseCell=null;
+  if (!activeSceneId) wrap.style.cursor='crosshair';
+  requestDraw();
+});
+wrap.addEventListener('contextmenu',e=>e.preventDefault());
+
+// ── Calculations ──
+let calcs = [];
+let calcCounter = 0;
+let activeCalcId = null;
+let editingCalcId = null;
+// formula: array of tokens — either {type:'text', value:''} or {type:'badge', prop, layerId, colorHex?}
+
+function calcLayerArea(layerId) {
+  const layer = layers.find(l => l.id === layerId);
+  if (!layer) return NaN;
+  return layer.cells.size * (CELL_CM / 100) * (CELL_CM / 100); // m²
+}
+
+function calcLayerColorArea(layerId, colorHex) {
+  const layer = layers.find(l => l.id === layerId);
+  if (!layer) return NaN;
+  let count = 0;
+  for (const [, c] of layer.cells) if (c.toLowerCase() === colorHex.toLowerCase()) count++;
+  return count * (CELL_CM / 100) * (CELL_CM / 100);
+}
+
+function calcLayerCellCount(layerId) {
+  const layer = layers.find(l => l.id === layerId);
+  if (!layer) return NaN;
+  return layer.cells.size;
+}
+
+function calcLayerColorCellCount(layerId, colorHex) {
+  const layer = layers.find(l => l.id === layerId);
+  if (!layer) return NaN;
+  let count = 0;
+  for (const [, c] of layer.cells) if (c.toLowerCase() === colorHex.toLowerCase()) count++;
+  return count;
+}
+
+function getLayerColors(layerId) {
+  const layer = layers.find(l => l.id === layerId);
+  if (!layer) return [];
+  const set = new Set();
+  for (const [, c] of layer.cells) set.add(c.toLowerCase());
+  return [...set];
+}
+
+function getAllLayersColors() {
+  const set = new Set();
+  for (const layer of layers)
+    for (const [, c] of layer.cells) set.add(c.toLowerCase());
+  return [...set];
+}
+
+function getMeasurementColors(measId) {
+  const meas = measurements.find(m => m.id === measId);
+  if (!meas) return [];
+  const set = new Set();
+  for (const seg of meas.segments) set.add(seg.color.toLowerCase());
+  return [...set];
+}
+
+function getAllMeasurementsColors() {
+  const set = new Set();
+  for (const meas of measurements)
+    for (const seg of meas.segments) set.add(seg.color.toLowerCase());
+  return [...set];
+}
+
+function calcMeasLength(measId) {
+  const meas = measurements.find(m => m.id === measId);
+  if (!meas) return 0;
+  return meas.segments.reduce((sum, seg) => sum + segmentLength(seg), 0);
+}
+
+function calcMeasColorLength(measId, colorHex) {
+  const meas = measurements.find(m => m.id === measId);
+  if (!meas) return 0;
+  return meas.segments
+    .filter(seg => seg.color.toLowerCase() === colorHex.toLowerCase())
+    .reduce((sum, seg) => sum + segmentLength(seg), 0);
+}
+
+function calcAllMeasLength() {
+  return measurements.reduce((sum, m) => sum + m.segments.reduce((s, seg) => s + segmentLength(seg), 0), 0);
+}
+
+function calcAllMeasColorLength(colorHex) {
+  return measurements.reduce((sum, m) =>
+    sum + m.segments
+      .filter(seg => seg.color.toLowerCase() === colorHex.toLowerCase())
+      .reduce((s, seg) => s + segmentLength(seg), 0), 0);
+}
+
+function calcAllLayersArea() {
+  return layers.reduce((sum, l) => sum + l.cells.size, 0) * (CELL_CM / 100) * (CELL_CM / 100);
+}
+
+function calcAllLayersColorArea(colorHex) {
+  return layers.reduce((sum, l) => {
+    let count = 0;
+    for (const [, c] of l.cells) if (c.toLowerCase() === colorHex.toLowerCase()) count++;
+    return sum + count * (CELL_CM / 100) * (CELL_CM / 100);
+  }, 0);
+}
+
+function calcAllLayersCellCount() {
+  return layers.reduce((sum, l) => sum + l.cells.size, 0);
+}
+
+function calcAllLayersColorCellCount(colorHex) {
+  return layers.reduce((sum, l) => {
+    let count = 0;
+    for (const [, c] of l.cells) if (c.toLowerCase() === colorHex.toLowerCase()) count++;
+    return sum + count;
+  }, 0);
+}
+
+function evalCalc(formula, _visiting) {
+  if (!formula || formula.length === 0) return '';
+  if (!_visiting) _visiting = new Set();
+  let expr = '';
+  for (const tok of formula) {
+    if (tok.type === 'text') {
+      expr += tok.value;
+    } else if (tok.type === 'badge') {
+      if (tok.prop === 'area') {
+        expr += calcLayerArea(tok.layerId);
+      } else if (tok.prop === 'colorarea') {
+        expr += calcLayerColorArea(tok.layerId, tok.colorHex);
+      } else if (tok.prop === 'cellcount') {
+        expr += calcLayerCellCount(tok.layerId);
+      } else if (tok.prop === 'colorcellcount') {
+        expr += calcLayerColorCellCount(tok.layerId, tok.colorHex);
+      } else if (tok.prop === 'alllayers-area') {
+        expr += calcAllLayersArea();
+      } else if (tok.prop === 'alllayers-colorarea') {
+        expr += calcAllLayersColorArea(tok.colorHex);
+      } else if (tok.prop === 'alllayers-cellcount') {
+        expr += calcAllLayersCellCount();
+      } else if (tok.prop === 'alllayers-colorcellcount') {
+        expr += calcAllLayersColorCellCount(tok.colorHex);
+      } else if (tok.prop === 'meas-length') {
+        expr += calcMeasLength(tok.measId);
+      } else if (tok.prop === 'meas-colorlength') {
+        expr += calcMeasColorLength(tok.measId, tok.colorHex);
+      } else if (tok.prop === 'allmeas-length') {
+        expr += calcAllMeasLength();
+      } else if (tok.prop === 'allmeas-colorlength') {
+        expr += calcAllMeasColorLength(tok.colorHex);
+      }
+    } else if (tok.type === 'calc-ref') {
+      if (_visiting.has(tok.calcId)) return 'ERR'; // circular reference
+      const refCalc = calcs.find(c => c.id === tok.calcId);
+      if (!refCalc) { expr += 'NaN'; continue; }
+      const childVisiting = new Set(_visiting);
+      childVisiting.add(tok.calcId);
+      const refResult = evalCalc(refCalc.formula, childVisiting);
+      if (refResult === 'ERR' || refResult === '') return 'ERR';
+      expr += refResult;
+    }
+  }
+  try {
+    const result = Function('"use strict"; return (' + expr + ')')();
+    if (typeof result !== 'number' || !isFinite(result)) return 'ERR';
+    return result.toFixed(2);
+  } catch { return 'ERR'; }
+}
+
+function badgeLabels(tok) {
+  if (tok.type === 'calc-ref') {
+    const refCalc = calcs.find(c => c.id === tok.calcId);
+    return { propLabel: refCalc ? refCalc.name : '?', subLabel: 'Calc' };
+  }
+  // measurement badges
+  if (tok.prop && (tok.prop.startsWith('meas-') || tok.prop.startsWith('allmeas-'))) {
+    const isAll = tok.prop.startsWith('allmeas-');
+    const meas = isAll ? null : measurements.find(m => m.id === tok.measId);
+    const measName = meas ? meas.name : (isAll ? 'All Measurements' : '?');
+    const propLabel = (tok.prop === 'meas-length' || tok.prop === 'allmeas-length') ? 'Total Length' : 'Length';
+    const subLabel  = tok.colorHex
+      ? `${measName} · ${tok.colorHex}`
+      : measName;
+    return { propLabel, subLabel };
+  }
+  const layer = layers.find(l => l.id === tok.layerId);
+  const layerName = layer ? layer.name : '?';
+  const propLabel = tok.prop === 'area'                    ? 'All Area'
+                  : tok.prop === 'colorarea'                ? 'Area'
+                  : tok.prop === 'cellcount'                ? 'All Cell Count'
+                  : tok.prop === 'colorcellcount'           ? 'Cell Count'
+                  : tok.prop === 'alllayers-area'           ? 'All Area'
+                  : tok.prop === 'alllayers-colorarea'      ? 'Area'
+                  : tok.prop === 'alllayers-cellcount'      ? 'All Cell Count'
+                  : tok.prop === 'alllayers-colorcellcount' ? 'Cell Count'
+                  : tok.prop;
+  const subLabel  = (tok.prop === 'colorarea' || tok.prop === 'colorcellcount')
+                  ? `${layerName} · ${tok.colorHex}`
+                  : (tok.prop === 'alllayers-colorarea' || tok.prop === 'alllayers-colorcellcount')
+                  ? `All Layers · ${tok.colorHex}`
+                  : tok.prop.startsWith('alllayers')
+                  ? 'All Layers'
+                  : layerName;
+  return { propLabel, subLabel };
+}
+
+function formulaToHTML(formula, interactive) {
+  if (!formula || formula.length === 0) return '';
+  let html = '';
+  for (let i = 0; i < formula.length; i++) {
+    const tok = formula[i];
+    if (tok.type === 'text') {
+      if (interactive) {
+        html += `<span class="formula-token" contenteditable="true" data-idx="${i}">${escapeHtml(tok.value)}</span>`;
+      } else {
+        html += `<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#888;">${escapeHtml(tok.value)}</span>`;
+      }
+    } else if (tok.type === 'badge' || tok.type === 'calc-ref') {
+      const { propLabel, subLabel } = badgeLabels(tok);
+      const extraClass = tok.type === 'calc-ref' ? ' calc-ref' : '';
+      if (interactive) {
+        html += `<span class="formula-badge${extraClass}" data-idx="${i}">
+          <span class="badge-prop">${propLabel}</span>
+          <span class="badge-layer">${escapeHtml(subLabel)}</span>
+          <span class="badge-remove">×</span>
+        </span>`;
+      } else {
+        html += `<span class="calc-badge${extraClass}">
+          <span class="badge-prop">${propLabel}</span>
+          <span class="badge-layer">${escapeHtml(subLabel)}</span>
+        </span>`;
+      }
+    }
+  }
+  return html;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Render Calculations ──
+function renderCalcs() {
+  const list = document.getElementById('calc-list');
+  list.innerHTML = '';
+
+  calcs.forEach(calc => {
+    const isActive = calc.id === activeCalcId;
+    const entry = document.createElement('div');
+    entry.className = 'calc-entry' + (isActive ? ' active' : '');
+    entry.dataset.id = calc.id;
+
+    const item = document.createElement('div');
+    item.className = 'calc-item';
+
+    const handle = document.createElement('div');
+    handle.className = 'calc-handle';
+    handle.textContent = '⠿';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'calc-name-display';
+    nameEl.textContent = calc.name;
+
+    const result = evalCalc(calc.formula);
+    const resultEl = document.createElement('div');
+    resultEl.className = 'calc-result' + (result === 'ERR' ? ' error' : '');
+    resultEl.dataset.calcId = calc.id;
+    resultEl.textContent = result;
+
+    item.addEventListener('click', e => {
+      if (e.target === handle) return;
+      activeCalcId = activeCalcId === calc.id ? null : calc.id;
+      renderCalcs();
+    });
+
+    item.appendChild(handle);
+    item.appendChild(nameEl);
+    item.appendChild(resultEl);
+    entry.appendChild(item);
+
+    if (isActive) {
+      const sub = document.createElement('div');
+      sub.className = 'calc-sub';
+
+      // formula preview
+      const preview = document.createElement('div');
+      preview.className = 'calc-formula-preview' + (!calc.formula || calc.formula.length === 0 ? ' empty' : '');
+      preview.title = 'Click to edit formula';
+      if (!calc.formula || calc.formula.length === 0) {
+        preview.textContent = 'No formula — click to edit';
+      } else {
+        preview.innerHTML = formulaToHTML(calc.formula, false);
+      }
+      preview.addEventListener('click', () => openCalcModal(calc.id));
+      sub.appendChild(preview);
+
+      const actions = document.createElement('div');
+      actions.className = 'calc-sub-actions';
+
+      const renameBtn = document.createElement('div');
+      renameBtn.className = 'sub-btn rename';
+      renameBtn.textContent = 'Rename';
+      renameBtn.style.cssText = 'background:#2a2448;color:#b8a4d4;border-color:#4a3a68;';
+      renameBtn.addEventListener('click', () => {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'layer-name-input';
+        inp.style.cssText = 'background:#1a1720;border-bottom-color:#b8a4d4;';
+        inp.value = calc.name;
+        item.replaceChild(inp, nameEl);
+        inp.focus(); inp.select();
+        const finish = () => { calc.name = inp.value.trim() || calc.name; renderCalcs(); };
+        inp.addEventListener('blur', finish);
+        inp.addEventListener('keydown', e => {
+          e.stopPropagation();
+          if (e.key === 'Enter') inp.blur();
+          if (e.key === 'Escape') { inp.value = calc.name; inp.blur(); }
+        });
+      });
+
+      const delBtn = document.createElement('div');
+      delBtn.className = 'sub-btn delete';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', () => {
+        pendingDeleteCalcId = calc.id;
+        document.getElementById('modal-calc-name').textContent = '"' + calc.name + '"';
+        document.getElementById('delete-calc-modal').classList.remove('hidden');
+      });
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(delBtn);
+      sub.appendChild(actions);
+      entry.appendChild(sub);
+    }
+
+    list.appendChild(entry);
+  });
+}
+
+function updateCalcResults() {
+  if (!calcs.length) return;
+  calcs.forEach(calc => {
+    const el = document.querySelector(`.calc-result[data-calc-id="${calc.id}"]`);
+    if (!el) return;
+    const result = evalCalc(calc.formula);
+    el.textContent = result;
+    el.className = 'calc-result' + (result === 'ERR' ? ' error' : '');
+  });
+}
+
+function updateLayerProps() {
+  if (!activeLayerId) return;
+  const layer = activeLayer();
+  if (!layer) return;
+  const CELL_AREA = (CELL_CM / 100) * (CELL_CM / 100);
+
+  // Recount
+  const colorMap = new Map();
+  for (const [, c] of layer.cells) colorMap.set(c.toLowerCase(), (colorMap.get(c.toLowerCase()) || 0) + 1);
+  const totalCells = layer.cells.size;
+  const totalArea  = totalCells * CELL_AREA;
+
+  // Update prop row totals — targeted by data-prop attribute
+  const areaVal = document.querySelector('.layer-prop-val[data-prop="area"]');
+  const countVal = document.querySelector('.layer-prop-val[data-prop="cellcount"]');
+  if (areaVal)  areaVal.textContent  = totalArea.toFixed(2);
+  if (countVal) countVal.textContent = totalCells.toString();
+
+  // Rebuild color rows — targeted by data-prop-colors attribute
+  const areaColors  = document.querySelector('.layer-prop-colors[data-prop-colors="area"]');
+  const countColors = document.querySelector('.layer-prop-colors[data-prop-colors="cellcount"]');
+
+  [[areaColors, (count) => (count * CELL_AREA).toFixed(2)],
+   [countColors, (count) => count.toString()]
+  ].forEach(([colorList, valFn]) => {
+    if (!colorList) return;
+    const wasOpen = colorList.classList.contains('open');
+    colorList.innerHTML = '';
+    [...colorMap.entries()].sort((a,b) => b[1]-a[1]).forEach(([hex, count]) => {
+      const cr = document.createElement('div');
+      cr.className = 'layer-color-row';
+      const dot = document.createElement('div');
+      dot.className = 'layer-color-dot';
+      dot.style.background = hex;
+      const cname = document.createElement('span');
+      cname.className = 'layer-color-name';
+      cname.textContent = hex;
+      const cval = document.createElement('span');
+      cval.className = 'layer-color-val';
+      cval.textContent = valFn(count);
+      cr.appendChild(dot); cr.appendChild(cname); cr.appendChild(cval);
+      colorList.appendChild(cr);
+    });
+    if (wasOpen) colorList.classList.add('open');
+  });
+}
+
+document.getElementById('add-calc-btn').addEventListener('click', () => {
+  calcCounter++;
+  const id = 'C' + calcCounter;
+  calcs.push({ id, name: 'Calc ' + calcCounter, formula: [] });
+  activeCalcId = id;
+  renderCalcs();
+});
+
+document.getElementById('calc-header').addEventListener('click', e => {
+  if (e.target.closest('#add-calc-btn')) return;
+  document.getElementById('calc-section').classList.toggle('collapsed');
+});
+
+// ── Calc Modal ──
+let modalFormula = []; // working copy while editing
+
+function openCalcModal(calcId) {
+  editingCalcId = calcId;
+  const calc = calcs.find(c => c.id === calcId);
+  if (!calc) return;
+  modalFormula = calc.formula.map(t => ({...t}));
+  document.getElementById('calc-modal-title').textContent = 'Edit — ' + calc.name;
+  renderModalFormula();
+  document.getElementById('calc-modal').classList.remove('hidden');
+}
+
+function closeCalcModal() {
+  document.getElementById('calc-modal').classList.add('hidden');
+  document.getElementById('prop-dropdown').classList.add('hidden');
+  document.getElementById('calc-ref-dropdown').classList.add('hidden');
+  calcDdOpen = false;
+  editingCalcId = null;
+  modalFormula = [];
+}
+
+// ── Single-div formula editor ──
+// The wrap div itself is contentEditable.
+// Text nodes = plain text, badges = contenteditable=false spans with data-badge-idx.
+// We serialize/deserialize from/to modalFormula on demand.
+
+const ZWSP = '\u200B'; // zero-width space — used nowhere else
+
+function formulaWrap() { return document.getElementById('calc-formula-wrap'); }
+
+function renderModalFormula() {
+  const wrap = formulaWrap();
+  // Save and restore focus+cursor only if wrap already has focus
+  const hadFocus = wrap === document.activeElement || wrap.contains(document.activeElement);
+
+  wrap.innerHTML = '';
+
+  // Flatten modalFormula into DOM
+  modalFormula.forEach((tok, i) => {
+    if (tok.type === 'text') {
+      if (tok.value) wrap.appendChild(document.createTextNode(tok.value));
+    } else {
+      const { propLabel, subLabel } = badgeLabels(tok);
+      const badge = document.createElement('span');
+      badge.className = 'formula-badge';
+      badge.contentEditable = 'false';
+      badge.dataset.badgeIdx = i;
+      badge.innerHTML = `<span class="badge-prop">${propLabel}</span><span class="badge-layer">${escapeHtml(subLabel)}</span>`;
+      wrap.appendChild(badge);
+    }
+  });
+
+  // Ensure at least one text node so cursor can land
+  if (!wrap.childNodes.length || wrap.lastChild.nodeType !== Node.TEXT_NODE) {
+    wrap.appendChild(document.createTextNode(''));
+  }
+}
+
+function removeBadgeNode(badgeEl) {
+  const wrap = formulaWrap();
+  // Place cursor just before the badge, then remove it
+  const range = document.createRange();
+  range.setStartBefore(badgeEl);
+  range.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  badgeEl.remove();
+  // Merge any split text nodes
+  wrap.normalize();
+  wrap.focus();
+}
+
+function serializeFormula() {
+  // Walk DOM children of wrap and build modalFormula
+  const wrap = formulaWrap();
+  const result = [];
+  wrap.childNodes.forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const v = node.textContent;
+      if (v) result.push({type:'text', value: v});
+    } else if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('formula-badge')) {
+      const tok = modalFormula[+node.dataset.badgeIdx];
+      if (tok) result.push({...tok});
+    }
+  });
+  modalFormula = result.length ? result : [];
+}
+
+function insertBadge(prop, idValue, colorHex) {
+  const wrap = formulaWrap();
+
+  const badge = document.createElement('span');
+  badge.className = 'formula-badge';
+  badge.contentEditable = 'false';
+  const isMeas = prop.startsWith('meas-') || prop.startsWith('allmeas-');
+  const tok = {type:'badge', prop};
+  if (!isMeas) tok.layerId = idValue;
+  else if (idValue) tok.measId = idValue;
+  if (colorHex) tok.colorHex = colorHex;
+  badge._tok = tok;
+  const { propLabel, subLabel } = badgeLabels(tok);
+  badge.innerHTML = `<span class="badge-prop">${propLabel}</span><span class="badge-layer">${escapeHtml(subLabel)}</span>`;
+
+  _doInsertBadgeNode(badge, wrap);
+}
+
+function insertCalcRefBadge(calcId) {
+  const wrap = formulaWrap();
+
+  const badge = document.createElement('span');
+  badge.className = 'formula-badge calc-ref';
+  badge.contentEditable = 'false';
+  const tok = {type:'calc-ref', calcId};
+  badge._tok = tok;
+  const { propLabel, subLabel } = badgeLabels(tok);
+  badge.innerHTML = `<span class="badge-prop">${escapeHtml(propLabel)}</span><span class="badge-layer">${escapeHtml(subLabel)}</span>`;
+
+  _doInsertBadgeNode(badge, wrap);
+}
+
+function _doInsertBadgeNode(badge, wrap) {
+  restoreFormulaSelection();
+  const sel = window.getSelection();
+
+  if (sel.rangeCount && wrap.contains(sel.anchorNode)) {
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(badge);
+    const after = document.createRange();
+    after.setStartAfter(badge);
+    after.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(after);
+  } else {
+    wrap.appendChild(badge);
+    wrap.appendChild(document.createTextNode(''));
+    placeCursorAtEnd(wrap);
+  }
+  wrap.normalize();
+  savedFormulaRange = null;
+}
+
+// ── Calc Reference Dropdown ──
+let calcDdOpen = false;
+
+function openCalcDropdown() {
+  calcDdOpen = true;
+  const dd = document.getElementById('calc-ref-dropdown');
+  dd.innerHTML = '';
+
+  const hdr = document.createElement('div');
+  hdr.className = 'prop-dd-item header';
+  hdr.textContent = 'Insert Calculation';
+  dd.appendChild(hdr);
+  const sep = document.createElement('div'); sep.className = 'prop-dd-sep'; dd.appendChild(sep);
+
+  // Filter out the calc currently being edited
+  const available = calcs.filter(c => c.id !== editingCalcId);
+
+  if (!available.length) {
+    const empty = document.createElement('div');
+    empty.className = 'prop-dd-item';
+    empty.style.color = '#555';
+    empty.textContent = 'No other calcs';
+    dd.appendChild(empty);
+  } else {
+    available.forEach(c => {
+      const result = evalCalc(c.formula);
+      const item = document.createElement('div');
+      item.className = 'prop-dd-item';
+      item.style.justifyContent = 'space-between';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = c.name;
+      const valSpan = document.createElement('span');
+      valSpan.style.cssText = 'font-family:IBM Plex Mono,monospace;font-size:10px;color:#7eb8a4;margin-left:8px;';
+      valSpan.textContent = result || '—';
+      item.appendChild(nameSpan);
+      item.appendChild(valSpan);
+      item.addEventListener('click', e => {
+        e.stopPropagation();
+        insertCalcRefBadge(c.id);
+        dd.classList.add('hidden');
+        calcDdOpen = false;
+      });
+      dd.appendChild(item);
+    });
+  }
+
+  const btn = document.getElementById('insert-calc-btn');
+  const rect = btn.getBoundingClientRect();
+  dd.classList.remove('hidden');
+  dd.style.top = (rect.bottom + 6) + 'px';
+  dd.style.left = rect.left + 'px';
+}
+
+// Serialize on save
+function getFormulaTokens() {
+  const wrap = formulaWrap();
+  const result = [];
+  wrap.childNodes.forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const v = node.textContent;
+      if (v) result.push({type:'text', value: v});
+    } else if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('formula-badge')) {
+      if (node._tok) {
+        result.push({...node._tok});
+      } else {
+        const orig = modalFormula[+node.dataset.badgeIdx];
+        if (orig) result.push({...orig});
+      }
+    }
+  });
+  return result;
+}
+
+function placeCursorAtEnd(el) {
+  const range = document.createRange(); const sel = window.getSelection();
+  range.selectNodeContents(el); range.collapse(false);
+  sel.removeAllRanges(); sel.addRange(range);
+}
+function placeCursorAtStart(el) {
+  const range = document.createRange(); const sel = window.getSelection();
+  range.selectNodeContents(el); range.collapse(true);
+  sel.removeAllRanges(); sel.addRange(range);
+}
+
+function cleanModalFormula() {
+  const merged = [];
+  for (const tok of modalFormula) {
+    if (tok.type === 'text' && merged.length && merged[merged.length-1].type === 'text') {
+      merged[merged.length-1].value += tok.value;
+    } else {
+      merged.push({...tok});
+    }
+  }
+  modalFormula = merged;
+}
+
+document.getElementById('calc-modal-cancel').addEventListener('click', closeCalcModal);
+document.getElementById('calc-modal-save').addEventListener('click', () => {
+  const calc = calcs.find(c => c.id === editingCalcId);
+  if (calc) calc.formula = getFormulaTokens();
+  closeCalcModal();
+  renderCalcs();
+});
+
+document.getElementById('calc-modal').addEventListener('click', e => {
+  // Modal closes only via Cancel/Save buttons — not by clicking outside
+});
+
+document.getElementById('calc-formula-wrap').addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('calc-modal-save').click();
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    document.getElementById('calc-modal-cancel').click();
+  }
+});
+
+// Highlight badges that fall within the current text selection
+document.addEventListener('selectionchange', () => {
+  const wrap = document.getElementById('calc-formula-wrap');
+  if (!wrap) return;
+  const badges = wrap.querySelectorAll('.formula-badge');
+  const sel = window.getSelection();
+  if (!sel.rangeCount || sel.isCollapsed || !wrap.contains(sel.anchorNode)) {
+    badges.forEach(b => b.classList.remove('selected'));
+    return;
+  }
+  const range = sel.getRangeAt(0);
+  badges.forEach(b => {
+    const r = document.createRange();
+    r.selectNode(b);
+    const intersects = range.compareBoundaryPoints(Range.END_TO_START, r) < 0 &&
+                       range.compareBoundaryPoints(Range.START_TO_END, r) > 0;
+    b.classList.toggle('selected', intersects);
+  });
+});
+
+// Only force cursor to end if user clicks in the empty area BELOW/AFTER all content
+document.getElementById('calc-formula-wrap').addEventListener('mousedown', e => {
+  if (e.target === document.getElementById('calc-formula-wrap')) {
+    // Let the default happen (browser places cursor where clicked)
+    // Only override if the click is past the last child
+    const wrap = document.getElementById('calc-formula-wrap');
+    const last = wrap.lastChild;
+    if (last) {
+      const lastRect = last.nodeType === Node.ELEMENT_NODE
+        ? last.getBoundingClientRect()
+        : null;
+      if (lastRect && e.clientY > lastRect.bottom) {
+        e.preventDefault();
+        placeCursorAtEnd(wrap);
+      }
+      // else: let browser place cursor naturally
+    }
+  }
+});
+
+// ── Property Dropdown ──
+let ddState = null; // null | 'top' | 'layers' | 'measurements' | {layerId} | {measId}
+let savedFormulaRange = null; // saved selection range before dropdown steals focus
+
+function saveFormulaSelection() {
+  const wrap = formulaWrap();
+  const sel = window.getSelection();
+  if (sel.rangeCount && wrap.contains(sel.anchorNode)) {
+    savedFormulaRange = sel.getRangeAt(0).cloneRange();
+  } else {
+    // default: end of wrap
+    savedFormulaRange = null;
+  }
+}
+
+function restoreFormulaSelection() {
+  const wrap = formulaWrap();
+  wrap.focus();
+  if (savedFormulaRange) {
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedFormulaRange);
+  }
+}
+
+function openPropDropdown() {
+  ddState = 'top';
+  renderPropDropdown();
+  const btn = document.getElementById('insert-prop-btn');
+  const rect = btn.getBoundingClientRect();
+  const dd = document.getElementById('prop-dropdown');
+  dd.classList.remove('hidden');
+  dd.style.top = (rect.bottom + 6) + 'px';
+  dd.style.left = rect.left + 'px';
+}
+
+function renderPropDropdown() {
+  const dd = document.getElementById('prop-dropdown');
+  dd.innerHTML = '';
+
+  // ── TOP LEVEL: Layers / Measurements ──
+  if (ddState === 'top') {
+    const hdr = document.createElement('div');
+    hdr.className = 'prop-dd-item header';
+    hdr.textContent = 'Insert Property';
+    dd.appendChild(hdr);
+    const sep = document.createElement('div'); sep.className = 'prop-dd-sep'; dd.appendChild(sep);
+
+    const layersItem = document.createElement('div');
+    layersItem.className = 'prop-dd-item';
+    layersItem.textContent = 'Layers  ›';
+    layersItem.addEventListener('click', e => { e.stopPropagation(); ddState = 'layers'; renderPropDropdown(); });
+    dd.appendChild(layersItem);
+
+    const measItem = document.createElement('div');
+    measItem.className = 'prop-dd-item';
+    measItem.textContent = 'Measurements  ›';
+    measItem.addEventListener('click', e => { e.stopPropagation(); ddState = 'measurements'; renderPropDropdown(); });
+    dd.appendChild(measItem);
+
+  // ── LAYERS: select layer ──
+  } else if (ddState === 'layers') {
+    const back = document.createElement('div');
+    back.className = 'prop-dd-item back';
+    back.textContent = '← Back';
+    back.addEventListener('click', e => { e.stopPropagation(); ddState = 'top'; renderPropDropdown(); });
+    dd.appendChild(back);
+    const sep = document.createElement('div'); sep.className = 'prop-dd-sep'; dd.appendChild(sep);
+
+    const hdr = document.createElement('div');
+    hdr.className = 'prop-dd-item header';
+    hdr.textContent = 'Select Layer';
+    dd.appendChild(hdr);
+    const sep2 = document.createElement('div'); sep2.className = 'prop-dd-sep'; dd.appendChild(sep2);
+
+    const allLayersItem = document.createElement('div');
+    allLayersItem.className = 'prop-dd-item';
+    allLayersItem.textContent = 'All Layers  ›';
+    allLayersItem.addEventListener('click', e => { e.stopPropagation(); ddState = {layerId: '__all__'}; renderPropDropdown(); });
+    dd.appendChild(allLayersItem);
+    const sep3 = document.createElement('div'); sep3.className = 'prop-dd-sep'; dd.appendChild(sep3);
+
+    layers.forEach(layer => {
+      const item = document.createElement('div');
+      item.className = 'prop-dd-item';
+      item.textContent = layer.name + '  ›';
+      item.addEventListener('click', e => { e.stopPropagation(); ddState = {layerId: layer.id}; renderPropDropdown(); });
+      dd.appendChild(item);
+    });
+    if (!layers.length) {
+      const empty = document.createElement('div');
+      empty.className = 'prop-dd-item';
+      empty.style.color = '#555';
+      empty.textContent = 'No layers';
+      dd.appendChild(empty);
+    }
+
+  // ── MEASUREMENTS: select measurement ──
+  } else if (ddState === 'measurements') {
+    const back = document.createElement('div');
+    back.className = 'prop-dd-item back';
+    back.textContent = '← Back';
+    back.addEventListener('click', e => { e.stopPropagation(); ddState = 'top'; renderPropDropdown(); });
+    dd.appendChild(back);
+    const sep = document.createElement('div'); sep.className = 'prop-dd-sep'; dd.appendChild(sep);
+
+    const hdr = document.createElement('div');
+    hdr.className = 'prop-dd-item header';
+    hdr.textContent = 'Select Measurement';
+    dd.appendChild(hdr);
+    const sep2 = document.createElement('div'); sep2.className = 'prop-dd-sep'; dd.appendChild(sep2);
+
+    const allMeasItem = document.createElement('div');
+    allMeasItem.className = 'prop-dd-item';
+    allMeasItem.textContent = 'All Measurements  ›';
+    allMeasItem.addEventListener('click', e => { e.stopPropagation(); ddState = {measId: '__all__'}; renderPropDropdown(); });
+    dd.appendChild(allMeasItem);
+    const sep3 = document.createElement('div'); sep3.className = 'prop-dd-sep'; dd.appendChild(sep3);
+
+    measurements.forEach(meas => {
+      const item = document.createElement('div');
+      item.className = 'prop-dd-item';
+      item.textContent = meas.name + '  ›';
+      item.addEventListener('click', e => { e.stopPropagation(); ddState = {measId: meas.id}; renderPropDropdown(); });
+      dd.appendChild(item);
+    });
+    if (!measurements.length) {
+      const empty = document.createElement('div');
+      empty.className = 'prop-dd-item';
+      empty.style.color = '#555';
+      empty.textContent = 'No measurements';
+      dd.appendChild(empty);
+    }
+
+  // ── LAYER PROPERTIES ──
+  } else if (ddState && ddState.layerId) {
+    const isAll = ddState.layerId === '__all__';
+    const colors = isAll ? getAllLayersColors() : getLayerColors(ddState.layerId);
+
+    const back = document.createElement('div');
+    back.className = 'prop-dd-item back';
+    back.textContent = '← Back';
+    back.addEventListener('click', e => { e.stopPropagation(); ddState = 'layers'; renderPropDropdown(); });
+    dd.appendChild(back);
+
+    const sep = document.createElement('div'); sep.className = 'prop-dd-sep'; dd.appendChild(sep);
+
+    const hdr = document.createElement('div');
+    hdr.className = 'prop-dd-item header';
+    hdr.textContent = isAll ? 'All Layers' : (layers.find(l => l.id === ddState.layerId)?.name || '?');
+    dd.appendChild(hdr);
+
+    // ── AREA section ──
+    const areaHdr = document.createElement('div');
+    areaHdr.className = 'prop-dd-item header';
+    areaHdr.textContent = 'Area';
+    dd.appendChild(areaHdr);
+
+    const layerAreaItem = document.createElement('div');
+    layerAreaItem.className = 'prop-dd-item';
+    layerAreaItem.textContent = 'All Area';
+    layerAreaItem.addEventListener('click', e => {
+      e.stopPropagation();
+      insertBadge(isAll ? 'alllayers-area' : 'area', isAll ? null : ddState.layerId);
+      document.getElementById('prop-dropdown').classList.add('hidden');
+    });
+    dd.appendChild(layerAreaItem);
+
+    colors.forEach(hex => {
+      const ci = makePropColorItem(hex, 'Area', () => {
+        insertBadge(isAll ? 'alllayers-colorarea' : 'colorarea', isAll ? null : ddState.layerId, hex);
+        document.getElementById('prop-dropdown').classList.add('hidden');
+      });
+      dd.appendChild(ci);
+    });
+    if (!colors.length) {
+      const noColor = document.createElement('div');
+      noColor.className = 'prop-dd-item';
+      noColor.style.color = '#555';
+      noColor.textContent = 'No colors yet';
+      dd.appendChild(noColor);
+    }
+
+    const sep2 = document.createElement('div'); sep2.className = 'prop-dd-sep'; dd.appendChild(sep2);
+
+    // ── COUNT section ──
+    const countHdr = document.createElement('div');
+    countHdr.className = 'prop-dd-item header';
+    countHdr.textContent = 'Count';
+    dd.appendChild(countHdr);
+
+    const cellCountItem = document.createElement('div');
+    cellCountItem.className = 'prop-dd-item';
+    cellCountItem.textContent = 'All Cell Count';
+    cellCountItem.addEventListener('click', e => {
+      e.stopPropagation();
+      insertBadge(isAll ? 'alllayers-cellcount' : 'cellcount', isAll ? null : ddState.layerId);
+      document.getElementById('prop-dropdown').classList.add('hidden');
+    });
+    dd.appendChild(cellCountItem);
+
+    colors.forEach(hex => {
+      const ci = makePropColorItem(hex, 'Cell Count', () => {
+        insertBadge(isAll ? 'alllayers-colorcellcount' : 'colorcellcount', isAll ? null : ddState.layerId, hex);
+        document.getElementById('prop-dropdown').classList.add('hidden');
+      });
+      dd.appendChild(ci);
+    });
+    if (!colors.length) {
+      const noColor = document.createElement('div');
+      noColor.className = 'prop-dd-item';
+      noColor.style.color = '#555';
+      noColor.textContent = 'No colors yet';
+      dd.appendChild(noColor);
+    }
+
+  // ── MEASUREMENT PROPERTIES ──
+  } else if (ddState && ddState.measId) {
+    const isAll = ddState.measId === '__all__';
+    const meas = isAll ? null : measurements.find(m => m.id === ddState.measId);
+    const measColors = isAll ? getAllMeasurementsColors() : getMeasurementColors(ddState.measId);
+
+    const back = document.createElement('div');
+    back.className = 'prop-dd-item back';
+    back.textContent = '← Back';
+    back.addEventListener('click', e => { e.stopPropagation(); ddState = 'measurements'; renderPropDropdown(); });
+    dd.appendChild(back);
+
+    const sep = document.createElement('div'); sep.className = 'prop-dd-sep'; dd.appendChild(sep);
+
+    const hdr = document.createElement('div');
+    hdr.className = 'prop-dd-item header';
+    hdr.textContent = isAll ? 'All Measurements' : (meas?.name || '?');
+    dd.appendChild(hdr);
+
+    const lenHdr = document.createElement('div');
+    lenHdr.className = 'prop-dd-item header';
+    lenHdr.textContent = 'Length';
+    dd.appendChild(lenHdr);
+
+    const allLenItem = document.createElement('div');
+    allLenItem.className = 'prop-dd-item';
+    allLenItem.textContent = 'Total Length';
+    allLenItem.addEventListener('click', e => {
+      e.stopPropagation();
+      insertBadge(isAll ? 'allmeas-length' : 'meas-length', isAll ? null : ddState.measId);
+      document.getElementById('prop-dropdown').classList.add('hidden');
+    });
+    dd.appendChild(allLenItem);
+
+    measColors.forEach(hex => {
+      const ci = makePropColorItem(hex, 'Length', () => {
+        insertBadge(isAll ? 'allmeas-colorlength' : 'meas-colorlength', isAll ? null : ddState.measId, hex);
+        document.getElementById('prop-dropdown').classList.add('hidden');
+      });
+      dd.appendChild(ci);
+    });
+    if (!measColors.length) {
+      const noColor = document.createElement('div');
+      noColor.className = 'prop-dd-item';
+      noColor.style.color = '#555';
+      noColor.textContent = 'No segments yet';
+      dd.appendChild(noColor);
+    }
+  }
+}
+
+function makePropColorItem(hex, label, onClick) {
+  const ci = document.createElement('div');
+  ci.className = 'prop-dd-item';
+  const dot = document.createElement('div');
+  dot.className = 'prop-dd-color-dot';
+  dot.style.background = hex;
+  ci.appendChild(dot);
+  const lbl = document.createElement('span');
+  lbl.textContent = hex + '  ' + label;
+  lbl.style.cssText = 'font-family:IBM Plex Mono,monospace;font-size:10px;';
+  ci.appendChild(lbl);
+  ci.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+  return ci;
+}
+
+document.getElementById('insert-prop-btn').addEventListener('mousedown', e => {
+  // Save cursor position BEFORE the button steals focus
+  saveFormulaSelection();
+});
+
+document.getElementById('insert-prop-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  const dd = document.getElementById('prop-dropdown');
+  if (!dd.classList.contains('hidden')) { dd.classList.add('hidden'); return; }
+  document.getElementById('calc-ref-dropdown').classList.add('hidden');
+  calcDdOpen = false;
+  openPropDropdown();
+});
+
+document.getElementById('insert-calc-btn').addEventListener('mousedown', e => {
+  saveFormulaSelection();
+});
+
+document.getElementById('insert-calc-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  const dd = document.getElementById('calc-ref-dropdown');
+  if (!dd.classList.contains('hidden')) { dd.classList.add('hidden'); calcDdOpen = false; return; }
+  document.getElementById('prop-dropdown').classList.add('hidden');
+  openCalcDropdown();
+});
+
+document.addEventListener('click', e => {
+  const dd = document.getElementById('prop-dropdown');
+  if (!dd.classList.contains('hidden') && !dd.contains(e.target) && e.target.id !== 'insert-prop-btn') {
+    dd.classList.add('hidden');
+  }
+  const dd2 = document.getElementById('calc-ref-dropdown');
+  if (!dd2.classList.contains('hidden') && !dd2.contains(e.target) && e.target.id !== 'insert-calc-btn') {
+    dd2.classList.add('hidden'); calcDdOpen = false;
+  }
+});
+
+// ── Escape closes calc modal ──
+const _origKeydown = window.onkeydown;
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('calc-modal').classList.contains('hidden')) {
+    closeCalcModal();
+  }
+  if (e.key === 'Escape') {
+    document.getElementById('instructions-modal').classList.add('hidden');
+    document.getElementById('shortcuts-modal').classList.add('hidden');
+  }
+});
+
+// ── Export / Import ──
+let projectFileName = 'archigrid-project';
+
+function imageToDataURL(img) {
+  if (!img) return null;
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  c.getContext('2d').drawImage(img, 0, 0);
+  try { return c.toDataURL('image/png'); } catch { return null; }
+}
+
+// ── UI Controls ──
+function applyUiVisibility() {
+  // Track canvas-wrap position BEFORE DOM changes
+  const rectBefore = wrap.getBoundingClientRect();
+
+  // Left panel
+  document.querySelector('.left-panel').style.display = ui.leftPanel ? '' : 'none';
+  // Right panel
+  document.getElementById('right-panel').style.display = ui.rightPanel ? '' : 'none';
+  // Rulers — all 4 ruler rows + corners
+  const rulerRows = document.querySelectorAll('.ruler-row');
+  rulerRows.forEach(r => r.style.display = ui.rulers ? '' : 'none');
+  const rulerVs = document.querySelectorAll('.ruler-v');
+  rulerVs.forEach(r => r.style.display = ui.rulers ? '' : 'none');
+
+  // Update button states
+  document.getElementById('ui-left-btn').classList.toggle('off', !ui.leftPanel);
+  document.getElementById('ui-right-btn').classList.toggle('off', !ui.rightPanel);
+  document.getElementById('ui-rulers-btn').classList.toggle('off', !ui.rulers);
+  document.getElementById('ui-grid-btn').classList.toggle('off', !ui.grid);
+
+  // Compensate viewX/viewY by how much the canvas-wrap moved on screen
+  // Force reflow so getBoundingClientRect reflects the new layout
+  void wrap.offsetLeft;
+  const rectAfter = wrap.getBoundingClientRect();
+  viewX -= rectBefore.left - rectAfter.left;
+  viewY -= rectBefore.top  - rectAfter.top;
+
+  // Apply new canvas dimensions
+  canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight;
+  rulerTop.width=rulerTop.parentElement.clientWidth; rulerTop.height=rulerTop.parentElement.clientHeight;
+  rulerBottom.width=rulerBottom.parentElement.clientWidth; rulerBottom.height=rulerBottom.parentElement.clientHeight;
+  rulerLeft.width=rulerLeft.parentElement.clientWidth; rulerLeft.height=rulerLeft.parentElement.clientHeight;
+  rulerRight.width=rulerRight.parentElement.clientWidth; rulerRight.height=rulerRight.parentElement.clientHeight;
+
+  draw();
+}
+
+document.getElementById('ui-left-btn').addEventListener('click', () => {
+  ui.leftPanel = !ui.leftPanel; applyUiVisibility();
+});
+document.getElementById('ui-right-btn').addEventListener('click', () => {
+  ui.rightPanel = !ui.rightPanel; applyUiVisibility();
+});
+document.getElementById('ui-rulers-btn').addEventListener('click', () => {
+  ui.rulers = !ui.rulers; applyUiVisibility();
+});
+document.getElementById('ui-grid-btn').addEventListener('click', () => {
+  ui.grid = !ui.grid; applyUiVisibility(); requestDraw();
+});
+
+// ── Settings Modal ──
+function renderSettingsSwatches() {
+  // Grid Lines swatches — preview color = thick lines color
+  const glContainer = document.getElementById('settings-gridlines-swatches');
+  glContainer.innerHTML = '';
+  GRID_LINE_PRESETS.forEach((preset, i) => {
+    const sw = document.createElement('div');
+    sw.className = 'settings-swatch' + (settings.gridLines === i ? ' active' : '');
+    sw.style.background = preset.thick;
+    sw.title = preset.thick;
+    sw.addEventListener('click', () => {
+      settings.gridLines = i;
+      renderSettingsSwatches();
+      requestDraw();
+    });
+    glContainer.appendChild(sw);
+  });
+
+  // Grid Background swatches
+  const bgContainer = document.getElementById('settings-gridbg-swatches');
+  bgContainer.innerHTML = '';
+  GRID_BG_PRESETS.forEach((color, i) => {
+    const sw = document.createElement('div');
+    sw.className = 'settings-swatch' + (settings.gridBg === i ? ' active' : '');
+    sw.style.background = color;
+    sw.title = color;
+    sw.addEventListener('click', () => {
+      settings.gridBg = i;
+      document.getElementById('canvas-wrap').style.background = GRID_BG_PRESETS[i];
+      renderSettingsSwatches();
+      requestDraw();
+    });
+    bgContainer.appendChild(sw);
+  });
+}
+
+document.getElementById('settings-btn').addEventListener('click', () => {
+  renderSettingsSwatches();
+  document.getElementById('settings-modal').classList.remove('hidden');
+});
+document.getElementById('settings-close').addEventListener('click', () => {
+  document.getElementById('settings-modal').classList.add('hidden');
+});
+document.getElementById('settings-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('settings-modal'))
+    document.getElementById('settings-modal').classList.add('hidden');
+});
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('settings-modal').classList.contains('hidden'))
+    document.getElementById('settings-modal').classList.add('hidden');
+});
+
+function exportProject() {
+  const data = {
+    version: 1,
+    brushX, brushY,
+    palette, activePaletteIndex,
+    layerCounter, sceneCounter, calcCounter, measurementCounter,
+    activeLayerId, activeSceneId, activeCalcId, activeMeasurementId,
+    soloLayerId, soloSceneId, soloMeasurementId,
+    viewX, viewY, zoom,
+    settings: { ...settings },
+    layers: layers.map(l => ({
+      id: l.id, name: l.name, visible: l.visible, opacity: l.opacity,
+      cells: [...l.cells.entries()]
+    })),
+    scenes: scenes.map(s => ({
+      id: s.id, name: s.name, x: s.x, y: s.y,
+      angleDeg: s.angleDeg, scale: s.scale, opacity: s.opacity, visible: s.visible,
+      imgData: imageToDataURL(s.img)
+    })),
+    calcs: calcs.map(c => ({ id: c.id, name: c.name, formula: c.formula })),
+    measurements: measurements.map(m => ({
+      id: m.id, name: m.name, visible: m.visible, opacity: m.opacity,
+      lineWidth: m.lineWidth ?? 1,
+      segments: m.segments.map(seg => ({ ...seg }))
+    }))
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = projectFileName + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importProject(file) {
+  // Update project name from imported filename (strip .json extension)
+  projectFileName = file.name.replace(/\.json$/i, '');
+  const fnEl = document.getElementById('project-filename');
+  const sepEl = document.getElementById('filename-sep');
+  fnEl.textContent = projectFileName + '.json';
+  sepEl.style.display = 'block';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.version || !data.layers) { alert('Invalid ArchiGrid file.'); return; }
+
+      brushX = data.brushX || 1;
+      brushY = data.brushY || 1;
+      palette = data.palette || [...PALETTE_DEFAULTS];
+      activePaletteIndex = data.activePaletteIndex || 0;
+      PAINT_COLOR = palette[activePaletteIndex];
+      layerCounter = data.layerCounter || 0;
+      sceneCounter = data.sceneCounter || 0;
+      calcCounter  = data.calcCounter  || 0;
+      measurementCounter = data.measurementCounter || 0;
+      activeLayerId = data.activeLayerId || null;
+      activeCalcId  = data.activeCalcId  || null;
+      activeMeasurementId = data.activeMeasurementId || null;
+      soloLayerId   = data.soloLayerId   || null;
+      soloSceneId   = data.soloSceneId   || null;
+      soloMeasurementId = data.soloMeasurementId || null;
+      viewX = data.viewX || 0; viewY = data.viewY || 0; zoom = data.zoom || 2;
+
+      if (data.settings) {
+        settings.gridLines = data.settings.gridLines ?? 2;
+        settings.gridBg    = data.settings.gridBg    ?? 2;
+        document.getElementById('canvas-wrap').style.background = GRID_BG_PRESETS[settings.gridBg];
+      }
+
+      layers = (data.layers || []).map(l => ({
+        id: l.id, name: l.name, visible: l.visible, opacity: l.opacity,
+        cells: new Map(l.cells), dirty: true, cache: null
+      }));
+
+      calcs = data.calcs || [];
+
+      measurements = (data.measurements || []).map(m => ({
+        id: m.id, name: m.name, visible: m.visible ?? true, opacity: m.opacity ?? 1,
+        lineWidth: m.lineWidth ?? 1,
+        segments: (m.segments || []).map(seg => ({ ...seg }))
+      }));
+
+      const sceneData = data.scenes || [];
+      if (!sceneData.length) {
+        scenes = [];
+        activeSceneId = null;
+        finishImport();
+        return;
+      }
+
+      scenes = sceneData.map(s => ({
+        id: s.id, name: s.name, x: s.x, y: s.y,
+        angleDeg: s.angleDeg, scale: s.scale, opacity: s.opacity, visible: s.visible,
+        img: null
+      }));
+
+      let loadedCount = 0;
+      sceneData.forEach((s, i) => {
+        if (!s.imgData) {
+          loadedCount++;
+          if (loadedCount === sceneData.length) { activeSceneId = data.activeSceneId || null; finishImport(); }
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          scenes[i].img = img;
+          loadedCount++;
+          if (loadedCount === sceneData.length) { activeSceneId = data.activeSceneId || null; finishImport(); }
+        };
+        img.onerror = () => {
+          scenes.splice(scenes.findIndex(sc => sc.id === s.id), 1);
+          loadedCount++;
+          if (loadedCount === sceneData.length) { activeSceneId = data.activeSceneId || null; finishImport(); }
+        };
+        img.src = s.imgData;
+      });
+
+    } catch(err) { alert('Error reading file: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+function finishImport() {
+  undoStack = []; redoStack = [];
+  lineAnchor = null;
+  isMeasDrawing = false; measDragMode = false;
+  measDrawStart = null; measDrawCurrent = null;
+  isMeasErasing = false;
+  updateUndoRedoUI();
+  updateBrushUI();
+  renderPalette();
+  syncHsbFromColor(palette[activePaletteIndex] || PAINT_COLOR);
+  renderScenes();
+  renderLayers();
+  renderCalcs();
+  renderMeasurements();
+  requestDraw();
+}
+
+document.getElementById('export-btn').addEventListener('click', exportProject);
+document.getElementById('import-btn').addEventListener('click', () => {
+  document.getElementById('import-file-input').click();
+});
+document.getElementById('import-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) importProject(file);
+  e.target.value = '';
+});
+
+// ── Instructions & Shortcuts ──
+document.getElementById('instructions-btn').addEventListener('click', () => {
+  document.getElementById('instructions-modal').classList.remove('hidden');
+});
+document.getElementById('instructions-close').addEventListener('click', () => {
+  document.getElementById('instructions-modal').classList.add('hidden');
+});
+document.getElementById('instructions-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('instructions-modal'))
+    document.getElementById('instructions-modal').classList.add('hidden');
+});
+
+document.getElementById('shortcuts-btn').addEventListener('click', () => {
+  document.getElementById('shortcuts-modal').classList.remove('hidden');
+});
+document.getElementById('shortcuts-close').addEventListener('click', () => {
+  document.getElementById('shortcuts-modal').classList.add('hidden');
+});
+document.getElementById('shortcuts-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('shortcuts-modal'))
+    document.getElementById('shortcuts-modal').classList.add('hidden');
+});
+
+function resize() {
+  canvas.width=wrap.clientWidth; canvas.height=wrap.clientHeight;
+  rulerTop.width=rulerTop.parentElement.clientWidth; rulerTop.height=rulerTop.parentElement.clientHeight;
+  rulerBottom.width=rulerBottom.parentElement.clientWidth; rulerBottom.height=rulerBottom.parentElement.clientHeight;
+  rulerLeft.width=rulerLeft.parentElement.clientWidth; rulerLeft.height=rulerLeft.parentElement.clientHeight;
+  rulerRight.width=rulerRight.parentElement.clientWidth; rulerRight.height=rulerRight.parentElement.clientHeight;
+  draw();
+}
+window.addEventListener('resize', resize);
+
+// ── Init ──
+updateBrushUI();
+renderPalette();
+syncHsbFromColor(PAINT_COLOR);
+document.getElementById('canvas-wrap').style.background = GRID_BG_PRESETS[settings.gridBg];
+renderScenes();
+addLayer();
+renderCalcs();
+resize();
+requestAnimationFrame(() => {
+  viewX = -wrap.clientWidth / 2;
+  viewY = -wrap.clientHeight / 2;
+  requestDraw();
+});
+</script>
+
+</body>
+</html>
